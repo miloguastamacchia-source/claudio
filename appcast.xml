@@ -13,7 +13,7 @@
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
             <enclosure
                 url="https://github.com/miloguastamacchia-source/claudio/releases/download/v1.2/Claudio-1.2.zip"
-                sparkle:edSignature="sparkle:edSignature="NMthOlCHqxvflzQ79d0E8JLXQ0ltuYVIO2WDMy3kh3HU/cJoTi9qJdO3oI4d98hLxQScz3pAhscCGq4U93F7DA==" length="1179277""
+                sparkle:edSignature="NMthOlCHqxvflzQ79d0E8JLXQ0ltuYVIO2WDMy3kh3HU/cJoTi9qJdO3oI4d98hLxQScz3pAhscCGq4U93F7DA=="
                 length="1179277"
                 type="application/octet-stream"
             />

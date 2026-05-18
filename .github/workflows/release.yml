@@ -23,6 +23,7 @@ jobs:
 
       - name: Build archive
         run: |
+          VERSION="${GITHUB_REF_NAME#v}"
           xcodebuild archive \
             -project Claudio.xcodeproj \
             -scheme Claudio \
@@ -32,6 +33,8 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            MARKETING_VERSION="${VERSION}" \
+            CURRENT_PROJECT_VERSION="${VERSION}" \
             -quiet
 
       - name: Package zip
@@ -62,39 +65,42 @@ jobs:
 
           # Write private key to a temp file (sign_update can't read /dev/stdin on macOS)
           KEY_FILE=$(mktemp)
-          echo "$SPARKLE_PRIVATE_KEY" > "$KEY_FILE"
+          printf '%s' "$SPARKLE_PRIVATE_KEY" > "$KEY_FILE"
           chmod 600 "$KEY_FILE"
 
-          # Sign the zip
-          SIGNATURE=$(/tmp/sparkle/bin/sign_update "$ZIP" --ed-key-file "$KEY_FILE")
+          # sign_update outputs the full attribute string:
+          #   sparkle:edSignature="..." length="..."
+          # Capture each attribute separately to embed cleanly in XML.
+          SU_OUT=$(/tmp/sparkle/bin/sign_update "$ZIP" --ed-key-file "$KEY_FILE")
           rm -f "$KEY_FILE"
-          FILESIZE=$(stat -f%z "$ZIP")
+          ED_SIG=$(echo "$SU_OUT" | grep -oE 'sparkle:edSignature="[^"]+"' | cut -d'"' -f2)
+          FILESIZE=$(echo "$SU_OUT" | grep -oE 'length="[0-9]+"' | cut -d'"' -f2)
 
-          # Write the new appcast.xml with all entries
+          # Write the new appcast.xml
           cat > appcast.xml <<APPCAST
-          <?xml version="1.0" encoding="utf-8"?>
-          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
-              <channel>
-                  <title>Claudio</title>
-                  <link>https://github.com/miloguastamacchia-source/claudio</link>
-                  <description>Claudio update feed</description>
-                  <language>en</language>
-                  <item>
-                      <title>Claudio ${VERSION}</title>
-                      <pubDate>$(date -u +"%a, %d %b %Y %H:%M:%S +0000")</pubDate>
-                      <sparkle:version>${VERSION}</sparkle:version>
-                      <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
-                      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-                      <enclosure
-                          url="${DOWNLOAD_URL}"
-                          sparkle:edSignature="${SIGNATURE}"
-                          length="${FILESIZE}"
-                          type="application/octet-stream"
-                      />
-                  </item>
-              </channel>
-          </rss>
-          APPCAST
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>Claudio</title>
+        <link>https://github.com/miloguastamacchia-source/claudio</link>
+        <description>Claudio update feed</description>
+        <language>en</language>
+        <item>
+            <title>Claudio ${VERSION}</title>
+            <pubDate>$(date -u +"%a, %d %b %Y %H:%M:%S +0000")</pubDate>
+            <sparkle:version>${VERSION}</sparkle:version>
+            <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <enclosure
+                url="${DOWNLOAD_URL}"
+                sparkle:edSignature="${ED_SIG}"
+                length="${FILESIZE}"
+                type="application/octet-stream"
+            />
+        </item>
+    </channel>
+</rss>
+APPCAST
 
       - name: Commit appcast
         run: |
