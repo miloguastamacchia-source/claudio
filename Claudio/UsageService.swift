@@ -236,7 +236,25 @@ func validateAndGetOrg(sessionKey: String) -> String? {
 }
 
 func validateAndGetConsoleOrg(sessionKey: String, excludingOrgId: String) -> String? {
-    guard case .success(let json) = apiRequest(path: "/api/organizations", sessionKey: sessionKey, baseURL: "https://platform.claude.com"),
+    let result = apiRequest(path: "/api/organizations", sessionKey: sessionKey, baseURL: "https://platform.claude.com")
+
+    // Debug: dump the raw org list so we can see what platform.claude.com returns
+    switch result {
+    case .success(let j):
+        if let data = try? JSONSerialization.data(withJSONObject: j, options: .prettyPrinted),
+           let str = String(data: data, encoding: .utf8) {
+            try? "excludingOrgId: \(excludingOrgId)\n\(str)".write(
+                toFile: "/tmp/claudio_console_orgs_debug.txt", atomically: true, encoding: .utf8)
+        }
+    case .authFailure:
+        try? "authFailure (excludingOrgId: \(excludingOrgId))".write(
+            toFile: "/tmp/claudio_console_orgs_debug.txt", atomically: true, encoding: .utf8)
+    case .networkError(let msg):
+        try? "networkError: \(msg) (excludingOrgId: \(excludingOrgId))".write(
+            toFile: "/tmp/claudio_console_orgs_debug.txt", atomically: true, encoding: .utf8)
+    }
+
+    guard case .success(let json) = result,
           let arr = json as? [[String: Any]]
     else { return nil }
     // platform.claude.com returns multiple orgs including the claude.ai org —

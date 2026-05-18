@@ -338,6 +338,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func aboutClicked() {
         NSApp.orderFrontStandardAboutPanel(options: [
+            .version: "",  // suppress build number — avoids "Version 1.x (1.x)" duplicate
             .credits: NSAttributedString(
                 string: "github.com/miloguastamacchia-source/claudio",
                 attributes: [
