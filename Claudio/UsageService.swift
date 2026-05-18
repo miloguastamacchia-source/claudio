@@ -235,22 +235,28 @@ func validateAndGetOrg(sessionKey: String) -> String? {
     return uuid
 }
 
-func validateAndGetConsoleOrg(sessionKey: String) -> String? {
+func validateAndGetConsoleOrg(sessionKey: String, excludingOrgId: String) -> String? {
     guard case .success(let json) = apiRequest(path: "/api/organizations", sessionKey: sessionKey, baseURL: "https://platform.claude.com"),
-          let arr = json as? [[String: Any]],
-          let first = arr.first,
-          let uuid = first["uuid"] as? String
+          let arr = json as? [[String: Any]]
     else { return nil }
-    return uuid
+    // platform.claude.com returns multiple orgs including the claude.ai org —
+    // skip that one and return the first platform-specific org ID.
+    for org in arr {
+        if let uuid = org["uuid"] as? String, uuid != excludingOrgId {
+            return uuid
+        }
+    }
+    return nil
 }
 
 // MARK: - Fetch usage
 
 private func fetchUsageSessionKey(session: Session) -> UsageResult {
-    // Resolve console org ID — fetch and cache if missing (e.g. existing sessions pre-v1.5)
+    // Resolve console org ID — fetch and cache if missing or if it incorrectly matches
+    // the claude.ai org ID (which platform.claude.com also returns but is the wrong one).
     var session = session
-    if session.consoleOrgId.isEmpty {
-        if let cid = validateAndGetConsoleOrg(sessionKey: session.sessionKey) {
+    if session.consoleOrgId.isEmpty || session.consoleOrgId == session.orgId {
+        if let cid = validateAndGetConsoleOrg(sessionKey: session.sessionKey, excludingOrgId: session.orgId) {
             session.consoleOrgId = cid
             saveSession(session)
         }
@@ -324,23 +330,6 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     // { "amount": <cents>, "last_paid_purchase_cents": <cents>, "pending_invoice_amount_cents": <cents|null>, ... }
     var creditRemaining: Double = 0
     var creditTotal: Double = 0
-
-    // Debug: dump raw credits response so we can see the exact structure
-    let debugLines: [String]
-    switch creditsResult {
-    case .success(let j):
-        if let data = try? JSONSerialization.data(withJSONObject: j, options: .prettyPrinted),
-           let str = String(data: data, encoding: .utf8) {
-            debugLines = ["consoleOrgId: \(session.consoleOrgId)", "creditsResult: success", str]
-        } else {
-            debugLines = ["consoleOrgId: \(session.consoleOrgId)", "creditsResult: success (unprintable)"]
-        }
-    case .authFailure:
-        debugLines = ["consoleOrgId: \(session.consoleOrgId)", "creditsResult: authFailure"]
-    case .networkError(let msg):
-        debugLines = ["consoleOrgId: \(session.consoleOrgId)", "creditsResult: networkError – \(msg)"]
-    }
-    try? debugLines.joined(separator: "\n").write(toFile: "/tmp/claudio_credits_debug.txt", atomically: true, encoding: .utf8)
 
     if case .success(let creditsJson) = creditsResult,
        let cr = creditsJson as? [String: Any] {

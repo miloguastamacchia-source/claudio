@@ -12,6 +12,7 @@ class MetricMenuView: NSView {
     private var usageFrac: Double = 0
     private var timeFrac: Double = 0
     private var resetText: String = "—"
+    private var overrideBarColor: NSColor? = nil
 
     init(title: String) {
         self.title = title
@@ -28,11 +29,12 @@ class MetricMenuView: NSView {
         needsDisplay = true
     }
 
-    func setData(value: String, usageFrac: Double, timeFrac: Double, resetStr: String) {
+    func setData(value: String, usageFrac: Double, timeFrac: Double, resetStr: String, barColor: NSColor? = nil) {
         self.value = value
         self.usageFrac = usageFrac
         self.timeFrac = timeFrac
         self.resetText = resetStr
+        self.overrideBarColor = barColor
         let h = resetStr.isEmpty ? rowHCompact : rowH
         if frame.height != h {
             frame = NSRect(x: 0, y: 0, width: menuW, height: h)
@@ -69,7 +71,7 @@ class MetricMenuView: NSView {
         let by: CGFloat = 28
         drawBar(x: bx, y: by, w: bw, h: menuBarH,
                 corner: menuBarCorner, fillFrac: usageFrac, tickFrac: timeFrac,
-                bgAlpha: 0.30)
+                bgAlpha: 0.30, overrideColor: overrideBarColor)
 
         if !resetText.isEmpty {
             let resetStr = NSAttributedString(string: resetText, attributes: [

@@ -21,9 +21,9 @@ private let colorCrit:   (CGFloat, CGFloat, CGFloat, CGFloat) = (1.0,  0.25, 0.2
 
 // MARK: - Color logic
 
-private func lerp(_ c1: (CGFloat, CGFloat, CGFloat, CGFloat),
-                  _ c2: (CGFloat, CGFloat, CGFloat, CGFloat),
-                  _ t: CGFloat) -> (CGFloat, CGFloat, CGFloat, CGFloat) {
+func lerp(_ c1: (CGFloat, CGFloat, CGFloat, CGFloat),
+          _ c2: (CGFloat, CGFloat, CGFloat, CGFloat),
+          _ t: CGFloat) -> (CGFloat, CGFloat, CGFloat, CGFloat) {
     let t = max(0, min(1, t))
     return (c1.0 + (c2.0 - c1.0) * t,
             c1.1 + (c2.1 - c1.1) * t,
@@ -43,11 +43,25 @@ func usageColor(usageFrac: Double) -> NSColor {
     return NSColor(red: c.0, green: c.1, blue: c.2, alpha: c.3)
 }
 
+/// Color for a bar that shows remaining balance — low remaining is bad.
+/// green > 25%, yellow 10–25%, red < 10%
+func creditsColor(remainingFrac: Double) -> NSColor {
+    let c: (CGFloat, CGFloat, CGFloat, CGFloat)
+    if remainingFrac <= 0.10 {
+        c = colorCrit
+    } else if remainingFrac <= 0.25 {
+        c = lerp(colorWarn, colorCrit, (0.25 - remainingFrac) / 0.15)
+    } else {
+        c = colorNormal
+    }
+    return NSColor(red: c.0, green: c.1, blue: c.2, alpha: c.3)
+}
+
 // MARK: - Bar drawing (shared by icon + menu views)
 
 func drawBar(x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat,
              corner: CGFloat, fillFrac: Double, tickFrac: Double,
-             bgAlpha: CGFloat) {
+             bgAlpha: CGFloat, overrideColor: NSColor? = nil) {
     let trackRect = NSRect(x: x, y: y, width: w, height: h)
     let trackPath = NSBezierPath(roundedRect: trackRect, xRadius: corner, yRadius: corner)
 
@@ -60,7 +74,8 @@ func drawBar(x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat,
     if fw > 0 {
         ctx.saveGraphicsState()
         trackPath.setClip()
-        usageColor(usageFrac: fillFrac).setFill()
+        let color = overrideColor ?? usageColor(usageFrac: fillFrac)
+        color.setFill()
         NSRect(x: x, y: y, width: fw, height: h).fill()
         ctx.restoreGraphicsState()
     }

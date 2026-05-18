@@ -122,6 +122,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         addMetric(extraView)
         addMetric(apiCreditsView)
 
+        let spacerItem = NSMenuItem()
+        spacerItem.view = NSView(frame: NSRect(x: 0, y: 0, width: 250, height: 6))
+        menu.addItem(spacerItem)
+
         updatedItem = NSMenuItem(title: "Refreshing\u{2026}  \u{21bb}", action: #selector(refreshClicked), keyEquivalent: "")
         updatedItem.target = self
         menu.addItem(updatedItem)
@@ -245,7 +249,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         sessionView.setData(value: "\(Int(sU))%", usageFrac: sU / 100, timeFrac: sT / 100, resetStr: "Resets in \(fmtReset(sR))")
         weeklyView.setData(value: "\(Int(wU))%", usageFrac: wU / 100, timeFrac: wT / 100, resetStr: "Resets in \(fmtReset(wR))")
         routineView.setData(value: "\(rUsed) / \(rLimit)", usageFrac: rFrac, timeFrac: 0, resetStr: "Resets daily")
-        apiCreditsView.setData(value: cLabel, usageFrac: cRemainingFrac, timeFrac: 0, resetStr: "Prepaid API balance")
+        apiCreditsView.setData(value: cLabel, usageFrac: cRemainingFrac, timeFrac: 0, resetStr: "Prepaid API balance",
+                               barColor: cTotal > 0 ? creditsColor(remainingFrac: cRemainingFrac) : nil)
 
         if d.extraEnabled {
             let oU = d.overagePct
