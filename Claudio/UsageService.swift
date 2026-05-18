@@ -264,10 +264,10 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
 
     let usedCents = (ov["used_credits"] as? Int) ?? 0
 
-    // Log the full usage response so we can discover available fields
-    if let prettyData = try? JSONSerialization.data(withJSONObject: usage, options: .prettyPrinted),
-       let prettyStr = String(data: prettyData, encoding: .utf8) {
-        log.debug("Usage API response:\n\(prettyStr)")
+    // Write full usage response to a temp file for field discovery
+    if let prettyData = try? JSONSerialization.data(withJSONObject: usage, options: .prettyPrinted) {
+        let path = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("claudio_usage_debug.json")
+        try? prettyData.write(to: path)
     }
 
     return .success(UsageData(
