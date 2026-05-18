@@ -60,8 +60,14 @@ jobs:
           ZIP="${{ env.ZIP }}"
           DOWNLOAD_URL="https://github.com/miloguastamacchia-source/claudio/releases/download/v${VERSION}/Claudio-${VERSION}.zip"
 
+          # Write private key to a temp file (sign_update can't read /dev/stdin on macOS)
+          KEY_FILE=$(mktemp)
+          echo "$SPARKLE_PRIVATE_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+
           # Sign the zip
-          SIGNATURE=$(echo "$SPARKLE_PRIVATE_KEY" | /tmp/sparkle/bin/sign_update "$ZIP" --ed-key-file /dev/stdin)
+          SIGNATURE=$(/tmp/sparkle/bin/sign_update "$ZIP" --ed-key-file "$KEY_FILE")
+          rm -f "$KEY_FILE"
           FILESIZE=$(stat -f%z "$ZIP")
 
           # Write the new appcast.xml with all entries
