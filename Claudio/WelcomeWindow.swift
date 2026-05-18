@@ -22,7 +22,7 @@ class WelcomeWindow {
         content.addSubview(icon)
 
         // Title
-        let title = NSTextField(labelWithString: "Tokenio")
+        let title = NSTextField(labelWithString: "Claudio")
         title.font = .systemFont(ofSize: 22, weight: .semibold)
         title.alignment = .center
         title.translatesAutoresizingMaskIntoConstraints = false

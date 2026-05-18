@@ -1,4 +1,4 @@
-# Tokenio
+# Claudio
 
 Tiny macOS menu bar app that shows your Claude AI usage at a glance.
 
@@ -17,33 +17,33 @@ The menu bar icon shows two small bars: the top bar is your current session usag
 
 ## Install
 
-Download the latest `.zip` from [Releases](https://github.com/elomid/tokenio/releases), unzip, and drag `Tokenio.app` to your Applications folder.
+Download the latest `.zip` from [Releases](https://github.com/miloguastamacchia-source/claudio/releases), unzip, and drag `Claudio.app` to your Applications folder.
 
 Requires macOS 13 (Ventura) or later. Designed for Claude Pro and Max subscribers.
 
-Tokenio enables Launch at Login on first run — you can toggle this from the menu.
+Claudio enables Launch at Login on first run — you can toggle this from the menu.
 
 ## Auth
 
-On first launch, Tokenio shows a welcome screen. Click **Log in to Claude** to sign in with your Claude account via email verification. Google sign-in is not supported — use "Continue with email" instead.
+On first launch, Claudio shows a welcome screen. Click **Log in to Claude** to sign in with your Claude account via email verification. Google sign-in is not supported — use "Continue with email" instead.
 
 Your session is stored locally and persists across restarts. No keychain prompts, no CLI required.
 
 ## Build from source
 
 ```bash
-git clone https://github.com/elomid/tokenio.git
-cd tokenio
-xcodebuild -project Tokenio.xcodeproj -scheme Tokenio -configuration Release -derivedDataPath build build
+git clone https://github.com/miloguastamacchia-source/claudio.git
+cd claudio
+xcodebuild -project Claudio.xcodeproj -scheme Claudio -configuration Release -derivedDataPath build build
 ```
 
-The built app will be in `build/Build/Products/Release/Tokenio.app`.
+The built app will be in `build/Build/Products/Release/Claudio.app`.
 
 ## How it works
 
-Tokenio signs you in via claude.ai and stores a session key locally. It then fetches usage data from Claude's API every 5 minutes. The API is undocumented and may change without notice.
+Claudio signs you in via claude.ai and stores a session key locally. It then fetches usage data from Claude's API every 5 minutes. The API is undocumented and may change without notice.
 
-Usage data is only exchanged with `claude.ai`. Your session key is stored in your macOS keychain under Tokenio's own entry — no credentials leave your machine.
+Usage data is only exchanged with `claude.ai`. Your session key is stored in your macOS keychain under Claudio's own entry — no credentials leave your machine.
 
 ## Known limitations
 

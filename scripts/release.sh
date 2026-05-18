@@ -2,8 +2,8 @@
 set -euo pipefail
 
 VERSION="${1:?Usage: ./scripts/release.sh <version>  (e.g. 0.1.0)}"
-SCHEME="Tokenio"
-PROJECT="Tokenio.xcodeproj"
+SCHEME="Claudio"
+PROJECT="Claudio.xcodeproj"
 BUILD_DIR="build"
 ARCHIVE_PATH="$BUILD_DIR/$SCHEME.xcarchive"
 APP_PATH="$ARCHIVE_PATH/Products/Applications/$SCHEME.app"
@@ -44,7 +44,7 @@ xcodebuild archive \
 # Sign
 echo "Signing..."
 codesign --force --options runtime --timestamp --sign "$IDENTITY" \
-    --entitlements "$SCHEME/Tokenio.entitlements" \
+    --entitlements "$SCHEME/Claudio.entitlements" \
     "$APP_PATH"
 codesign --verify --deep --strict "$APP_PATH"
 echo "Signature OK"
@@ -82,8 +82,8 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     git tag "v$VERSION"
     git push origin "v$VERSION"
     gh release create "v$VERSION" \
-        --title "Tokenio $VERSION" \
+        --title "Claudio $VERSION" \
         --generate-notes \
         "$ZIP_PATH" "$BUILD_DIR/$SCHEME-$VERSION.sha256"
-    echo "Released: https://github.com/elomid/tokenio/releases/tag/v$VERSION"
+    echo "Released: https://github.com/miloguastamacchia-source/claudio/releases/tag/v$VERSION"
 fi

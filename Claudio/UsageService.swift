@@ -2,7 +2,7 @@ import Foundation
 import Security
 import os
 
-let log = Logger(subsystem: "com.tokenio.app", category: "general")
+let log = Logger(subsystem: "com.claudio.app", category: "general")
 
 // MARK: - Data model
 
@@ -25,9 +25,9 @@ enum UsageResult {
     case error(String)
 }
 
-// MARK: - Keychain (Tokenio-owned)
+// MARK: - Keychain (Claudio-owned)
 
-private let keychainService = "tokenio"
+private let keychainService = "claudio"
 private let keychainAccount = "session"
 
 private func keychainSave(service: String, account: String, data: Data) -> Bool {

@@ -135,13 +135,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         launchAtLoginItem.state = LaunchAtLogin.isEnabled ? .on : .off
         menu.addItem(launchAtLoginItem)
 
-        let aboutItem = NSMenuItem(title: "About Tokenio", action: #selector(aboutClicked), keyEquivalent: "")
+        let aboutItem = NSMenuItem(title: "About Claudio", action: #selector(aboutClicked), keyEquivalent: "")
         aboutItem.target = self
         menu.addItem(aboutItem)
 
         menu.addItem(.separator())
 
-        let quitItem = NSMenuItem(title: "Quit Tokenio", action: #selector(quitClicked), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit Claudio", action: #selector(quitClicked), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -303,9 +303,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func aboutClicked() {
         NSApp.orderFrontStandardAboutPanel(options: [
             .credits: NSAttributedString(
-                string: "github.com/elomid/tokenio",
+                string: "github.com/miloguastamacchia-source/claudio",
                 attributes: [
-                    .link: URL(string: "https://github.com/elomid/tokenio")!,
+                    .link: URL(string: "https://github.com/miloguastamacchia-source/claudio")!,
                     .font: NSFont.systemFont(ofSize: 11),
                 ]
             ),

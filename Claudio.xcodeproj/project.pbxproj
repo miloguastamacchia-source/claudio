@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A10001 /* TokenioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20001; };
+		A10001 /* ClaudioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20001; };
 		A10002 /* BarRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20002; };
 		A10003 /* MetricMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20003; };
 		A10004 /* UsageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20004; };
@@ -17,16 +17,16 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A20001 /* TokenioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenioApp.swift; sourceTree = "<group>"; };
+		A20001 /* ClaudioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudioApp.swift; sourceTree = "<group>"; };
 		A20002 /* BarRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarRenderer.swift; sourceTree = "<group>"; };
 		A20003 /* MetricMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricMenuView.swift; sourceTree = "<group>"; };
 		A20004 /* UsageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageService.swift; sourceTree = "<group>"; };
 		A20005 /* LoginWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginWindow.swift; sourceTree = "<group>"; };
 		A20009 /* WelcomeWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeWindow.swift; sourceTree = "<group>"; };
 		A20006 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		A20007 /* Tokenio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tokenio.entitlements; sourceTree = "<group>"; };
+		A20007 /* Claudio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Claudio.entitlements; sourceTree = "<group>"; };
 		A20008 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		A30001 /* Tokenio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tokenio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A30001 /* Claudio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Claudio.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,31 +51,31 @@
 		A50001 = {
 			isa = PBXGroup;
 			children = (
-				A50002 /* Tokenio */,
+				A50002 /* Claudio */,
 				A50003 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		A50002 /* Tokenio */ = {
+		A50002 /* Claudio */ = {
 			isa = PBXGroup;
 			children = (
-				A20001 /* TokenioApp.swift */,
+				A20001 /* ClaudioApp.swift */,
 				A20002 /* BarRenderer.swift */,
 				A20003 /* MetricMenuView.swift */,
 				A20004 /* UsageService.swift */,
 				A20005 /* LoginWindow.swift */,
 				A20009 /* WelcomeWindow.swift */,
 				A20006 /* Info.plist */,
-				A20007 /* Tokenio.entitlements */,
+				A20007 /* Claudio.entitlements */,
 				A20008 /* Assets.xcassets */,
 			);
-			path = Tokenio;
+			path = Claudio;
 			sourceTree = "<group>";
 		};
 		A50003 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A30001 /* Tokenio.app */,
+				A30001 /* Claudio.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -83,9 +83,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A60001 /* Tokenio */ = {
+		A60001 /* Claudio */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A80002 /* Build configuration list for PBXNativeTarget "Tokenio" */;
+			buildConfigurationList = A80002 /* Build configuration list for PBXNativeTarget "Claudio" */;
 			buildPhases = (
 				A70001 /* Sources */,
 				A40001 /* Frameworks */,
@@ -95,9 +95,9 @@
 			);
 			dependencies = (
 			);
-			name = Tokenio;
-			productName = Tokenio;
-			productReference = A30001 /* Tokenio.app */;
+			name = Claudio;
+			productName = Claudio;
+			productReference = A30001 /* Claudio.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -110,7 +110,7 @@
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
 			};
-			buildConfigurationList = A80001 /* Build configuration list for PBXProject "Tokenio" */;
+			buildConfigurationList = A80001 /* Build configuration list for PBXProject "Claudio" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -123,7 +123,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A60001 /* Tokenio */,
+				A60001 /* Claudio */,
 			);
 		};
 /* End PBXProject section */
@@ -133,7 +133,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A10001 /* TokenioApp.swift in Sources */,
+				A10001 /* ClaudioApp.swift in Sources */,
 				A10002 /* BarRenderer.swift in Sources */,
 				A10003 /* MetricMenuView.swift in Sources */,
 				A10004 /* UsageService.swift in Sources */,
@@ -194,13 +194,13 @@
 		AB0003 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = Tokenio/Tokenio.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Claudio/Claudio.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Tokenio/Info.plist;
+				INFOPLIST_FILE = Claudio/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -208,7 +208,7 @@
 					"@executable_path/../Frameworks",
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tokenio.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.claudio.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -218,13 +218,13 @@
 		AB0004 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = Tokenio/Tokenio.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Claudio/Claudio.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Tokenio/Info.plist;
+				INFOPLIST_FILE = Claudio/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -232,7 +232,7 @@
 					"@executable_path/../Frameworks",
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				PRODUCT_BUNDLE_IDENTIFIER = com.tokenio.app;
+				PRODUCT_BUNDLE_IDENTIFIER = com.claudio.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -242,7 +242,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A80001 /* Build configuration list for PBXProject "Tokenio" */ = {
+		A80001 /* Build configuration list for PBXProject "Claudio" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AB0001 /* Debug */,
@@ -251,7 +251,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A80002 /* Build configuration list for PBXNativeTarget "Tokenio" */ = {
+		A80002 /* Build configuration list for PBXNativeTarget "Claudio" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AB0003 /* Debug */,
