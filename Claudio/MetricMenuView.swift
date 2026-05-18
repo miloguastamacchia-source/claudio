@@ -2,7 +2,8 @@ import AppKit
 
 private let menuW: CGFloat = 250
 private let menuPad: CGFloat = 24
-private let viewH: CGFloat = 58
+private let rowH: CGFloat = 58        // height when reset text is present
+private let rowHCompact: CGFloat = 44 // height when no reset text
 
 class MetricMenuView: NSView {
     private var title: String
@@ -14,7 +15,7 @@ class MetricMenuView: NSView {
 
     init(title: String) {
         self.title = title
-        super.init(frame: NSRect(x: 0, y: 0, width: menuW, height: viewH))
+        super.init(frame: NSRect(x: 0, y: 0, width: menuW, height: rowH))
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -32,6 +33,10 @@ class MetricMenuView: NSView {
         self.usageFrac = usageFrac
         self.timeFrac = timeFrac
         self.resetText = resetStr
+        let h = resetStr.isEmpty ? rowHCompact : rowH
+        if frame.height != h {
+            frame = NSRect(x: 0, y: 0, width: menuW, height: h)
+        }
         needsDisplay = true
     }
 
@@ -66,10 +71,12 @@ class MetricMenuView: NSView {
                 corner: menuBarCorner, fillFrac: usageFrac, tickFrac: timeFrac,
                 bgAlpha: 0.30)
 
-        let resetStr = NSAttributedString(string: resetText, attributes: [
-            .font: fReset, .foregroundColor: NSColor.secondaryLabelColor
-        ])
-        resetStr.draw(at: NSPoint(x: menuPad, y: by + menuBarH + 5))
+        if !resetText.isEmpty {
+            let resetStr = NSAttributedString(string: resetText, attributes: [
+                .font: fReset, .foregroundColor: NSColor.secondaryLabelColor
+            ])
+            resetStr.draw(at: NSPoint(x: menuPad, y: by + menuBarH + 5))
+        }
     }
 }
 

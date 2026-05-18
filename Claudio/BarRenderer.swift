@@ -15,9 +15,9 @@ private let iconBgAlpha: CGFloat = 0.35
 let menuBarH: CGFloat = 7
 let menuBarCorner: CGFloat = 2.5
 
-private let colorNormal: (CGFloat, CGFloat, CGFloat, CGFloat) = (0.25, 0.85, 0.35, 1.0)  // green
-private let colorWarn:   (CGFloat, CGFloat, CGFloat, CGFloat) = (1.0,  0.45, 0.10, 1.0)  // orange (≥90%)
-private let colorCrit:   (CGFloat, CGFloat, CGFloat, CGFloat) = (1.0,  0.25, 0.20, 1.0)  // red (100%)
+private let colorNormal: (CGFloat, CGFloat, CGFloat, CGFloat) = (0.25, 0.85, 0.35, 1.0)  // green  (<75%)
+private let colorWarn:   (CGFloat, CGFloat, CGFloat, CGFloat) = (1.0,  0.80, 0.0,  1.0)  // yellow (≥75%)
+private let colorCrit:   (CGFloat, CGFloat, CGFloat, CGFloat) = (1.0,  0.25, 0.20, 1.0)  // red    (≥90%)
 
 // MARK: - Color logic
 
@@ -33,10 +33,10 @@ private func lerp(_ c1: (CGFloat, CGFloat, CGFloat, CGFloat),
 
 func usageColor(usageFrac: Double) -> NSColor {
     let c: (CGFloat, CGFloat, CGFloat, CGFloat)
-    if usageFrac >= 1.0 {
+    if usageFrac >= 0.9 {
         c = colorCrit
-    } else if usageFrac >= 0.9 {
-        c = lerp(colorWarn, colorCrit, (usageFrac - 0.9) / 0.1)
+    } else if usageFrac >= 0.75 {
+        c = lerp(colorWarn, colorCrit, (usageFrac - 0.75) / 0.15)
     } else {
         c = colorNormal
     }

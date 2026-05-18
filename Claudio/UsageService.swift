@@ -324,6 +324,24 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     // { "amount": <cents>, "last_paid_purchase_cents": <cents>, "pending_invoice_amount_cents": <cents|null>, ... }
     var creditRemaining: Double = 0
     var creditTotal: Double = 0
+
+    // Debug: dump raw credits response so we can see the exact structure
+    let debugLines: [String]
+    switch creditsResult {
+    case .success(let j):
+        if let data = try? JSONSerialization.data(withJSONObject: j, options: .prettyPrinted),
+           let str = String(data: data, encoding: .utf8) {
+            debugLines = ["consoleOrgId: \(session.consoleOrgId)", "creditsResult: success", str]
+        } else {
+            debugLines = ["consoleOrgId: \(session.consoleOrgId)", "creditsResult: success (unprintable)"]
+        }
+    case .authFailure:
+        debugLines = ["consoleOrgId: \(session.consoleOrgId)", "creditsResult: authFailure"]
+    case .networkError(let msg):
+        debugLines = ["consoleOrgId: \(session.consoleOrgId)", "creditsResult: networkError – \(msg)"]
+    }
+    try? debugLines.joined(separator: "\n").write(toFile: "/tmp/claudio_credits_debug.txt", atomically: true, encoding: .utf8)
+
     if case .success(let creditsJson) = creditsResult,
        let cr = creditsJson as? [String: Any] {
         func cents(_ key: String) -> Int {
