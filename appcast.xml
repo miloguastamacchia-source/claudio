@@ -6,15 +6,15 @@
         <description>Claudio update feed</description>
         <language>en</language>
         <item>
-            <title>Claudio 1.9</title>
-            <pubDate>Mon, 18 May 2026 23:08:40 +0000</pubDate>
-            <sparkle:version>1.9</sparkle:version>
-            <sparkle:shortVersionString>1.9</sparkle:shortVersionString>
+            <title>Claudio 1.10</title>
+            <pubDate>Mon, 18 May 2026 23:22:24 +0000</pubDate>
+            <sparkle:version>1.10</sparkle:version>
+            <sparkle:shortVersionString>1.10</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
             <enclosure
-                url="https://github.com/miloguastamacchia-source/claudio/releases/download/v1.9/Claudio-1.9.zip"
-                sparkle:edSignature="3nd4pysmsRbQE/G2l56ZAJ+FJVTECMA7QoayKoLxMLxcp8tuPSZ/D9emIDUTMMGGVAAybkCINi8LUNfN6zGQAg=="
-                length="1196210"
+                url="https://github.com/miloguastamacchia-source/claudio/releases/download/v1.10/Claudio-1.10.zip"
+                sparkle:edSignature="gY5HzwA/c7yRXw2pg95+slgjFD5zzmFLUC39Qgg7jgkxT049SuBn9ZqSeYqjgi3IpivMlNf46X69vBts/NDCAw=="
+                length="1195453"
                 type="application/octet-stream"
             />
         </item>
