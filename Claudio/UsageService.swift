@@ -306,13 +306,26 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
 
     group.enter()
     DispatchQueue.global().async {
+        var log = "consoleOrgId='\(session.consoleOrgId)' isEmpty=\(session.consoleOrgId.isEmpty)\n"
         if !session.consoleOrgId.isEmpty {
-            creditsResult = apiRequestDict(
+            let r = apiRequestDict(
                 path: "/api/organizations/\(session.consoleOrgId)/prepaid/credits",
                 sessionKey: session.sessionKey,
                 baseURL: "https://platform.claude.com"
             )
+            creditsResult = r
+            switch r {
+            case .success(let j):
+                if let data = try? JSONSerialization.data(withJSONObject: j, options: .prettyPrinted),
+                   let str = String(data: data, encoding: .utf8) { log += "success:\n\(str)" }
+                else { log += "success (unprintable)" }
+            case .authFailure:        log += "authFailure"
+            case .networkError(let m): log += "networkError: \(m)"
+            }
+        } else {
+            log += "SKIPPED — consoleOrgId is empty"
         }
+        try? log.write(toFile: "/tmp/claudio_credits3_debug.txt", atomically: true, encoding: .utf8)
         group.leave()
     }
 
@@ -348,18 +361,6 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     // { "amount": <cents>, "last_paid_purchase_cents": <cents>, "pending_invoice_amount_cents": <cents|null>, ... }
     var creditRemaining: Double = 0
     var creditTotal: Double = 0
-
-    // Debug: log consoleOrgId and raw credits result
-    var debugOut = "consoleOrgId: \(session.consoleOrgId)\n"
-    switch creditsResult {
-    case .success(let j):
-        if let data = try? JSONSerialization.data(withJSONObject: j, options: .prettyPrinted),
-           let str = String(data: data, encoding: .utf8) { debugOut += "success:\n\(str)" }
-        else { debugOut += "success (unprintable)" }
-    case .authFailure:  debugOut += "authFailure"
-    case .networkError(let m): debugOut += "networkError: \(m)"
-    }
-    try? debugOut.write(toFile: "/tmp/claudio_credits2_debug.txt", atomically: true, encoding: .utf8)
 
     if case .success(let creditsJson) = creditsResult,
        let cr = creditsJson as? [String: Any] {
