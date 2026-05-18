@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app
+
+      - name: Build archive
+        run: |
+          xcodebuild archive \
+            -project Claudio.xcodeproj \
+            -scheme Claudio \
+            -configuration Release \
+            -destination "generic/platform=macOS" \
+            -archivePath build/Claudio.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet
+
+      - name: Package zip
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          APP="build/Claudio.xcarchive/Products/Applications/Claudio.app"
+          ZIP="build/Claudio-${VERSION}.zip"
+          ditto -c -k --keepParent "$APP" "$ZIP"
+          echo "ZIP=$ZIP"           >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION"   >> "$GITHUB_ENV"
+          shasum -a 256 "$ZIP" | tee "build/Claudio-${VERSION}.sha256"
+          echo "SHA256=build/Claudio-${VERSION}.sha256" >> "$GITHUB_ENV"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Claudio ${{ env.VERSION }}"
+          body: |
+            ## Install
+
+            1. Download `Claudio-${{ env.VERSION }}.zip` below
+            2. Unzip and drag **Claudio.app** to your Applications folder
+            3. Right-click → Open the first time (unsigned build — Gatekeeper will ask once)
+
+            Requires macOS 13 (Ventura) or later.
+          files: |
+            ${{ env.ZIP }}
+            ${{ env.SHA256 }}
