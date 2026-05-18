@@ -1,5 +1,6 @@
 import AppKit
 import ServiceManagement
+import Sparkle
 
 @main
 class AppDelegate: NSObject, NSApplicationDelegate {
@@ -21,6 +22,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var logoutItem: NSMenuItem!
     private var launchAtLoginItem: NSMenuItem!
 
+    private var updaterController: SPUStandardUpdaterController!
+
     private var fetchTimer: Timer?
     private var uiTimer: Timer?
     private var lastFetched: TimeInterval = 0
@@ -37,6 +40,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+
+        updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
         // Enable launch at login on first run
         if !UserDefaults.standard.bool(forKey: "hasLaunched") {
@@ -134,6 +139,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         launchAtLoginItem.target = self
         launchAtLoginItem.state = LaunchAtLogin.isEnabled ? .on : .off
         menu.addItem(launchAtLoginItem)
+
+        let checkUpdatesItem = NSMenuItem(title: "Check for Updates\u{2026}", action: #selector(checkForUpdatesClicked), keyEquivalent: "")
+        checkUpdatesItem.target = self
+        menu.addItem(checkUpdatesItem)
 
         let aboutItem = NSMenuItem(title: "About Claudio", action: #selector(aboutClicked), keyEquivalent: "")
         aboutItem.target = self
@@ -298,6 +307,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleLaunchAtLogin() {
         LaunchAtLogin.toggle()
         launchAtLoginItem.state = LaunchAtLogin.isEnabled ? .on : .off
+    }
+
+    @objc private func checkForUpdatesClicked() {
+        updaterController.checkForUpdates(nil)
     }
 
     @objc private func aboutClicked() {

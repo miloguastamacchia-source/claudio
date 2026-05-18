@@ -4,5 +4,9 @@
 <dict>
 	<key>LSUIElement</key>
 	<true/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/miloguastamacchia-source/claudio/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>rmvWnhJ8Q3fOo4l15RBZ+YIonRxtmXfzuxsPW0n4DZ0=</string>
 </dict>
 </plist>

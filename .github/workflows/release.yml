@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.3.app
@@ -43,6 +45,59 @@ jobs:
           shasum -a 256 "$ZIP" | tee "build/Claudio-${VERSION}.sha256"
           echo "SHA256=build/Claudio-${VERSION}.sha256" >> "$GITHUB_ENV"
 
+      - name: Install Sparkle tools
+        run: |
+          curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.6.4/Sparkle-2.6.4.tar.xz \
+            -o /tmp/sparkle.tar.xz
+          mkdir -p /tmp/sparkle
+          tar xf /tmp/sparkle.tar.xz -C /tmp/sparkle
+
+      - name: Sign update and update appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          VERSION="${{ env.VERSION }}"
+          ZIP="${{ env.ZIP }}"
+          DOWNLOAD_URL="https://github.com/miloguastamacchia-source/claudio/releases/download/v${VERSION}/Claudio-${VERSION}.zip"
+
+          # Sign the zip
+          SIGNATURE=$(echo "$SPARKLE_PRIVATE_KEY" | /tmp/sparkle/bin/sign_update "$ZIP" --ed-key-file /dev/stdin)
+          FILESIZE=$(stat -f%z "$ZIP")
+
+          # Write the new appcast.xml with all entries
+          cat > appcast.xml <<APPCAST
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+              <channel>
+                  <title>Claudio</title>
+                  <link>https://github.com/miloguastamacchia-source/claudio</link>
+                  <description>Claudio update feed</description>
+                  <language>en</language>
+                  <item>
+                      <title>Claudio ${VERSION}</title>
+                      <pubDate>$(date -u +"%a, %d %b %Y %H:%M:%S +0000")</pubDate>
+                      <sparkle:version>${VERSION}</sparkle:version>
+                      <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>
+                      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+                      <enclosure
+                          url="${DOWNLOAD_URL}"
+                          sparkle:edSignature="${SIGNATURE}"
+                          length="${FILESIZE}"
+                          type="application/octet-stream"
+                      />
+                  </item>
+              </channel>
+          </rss>
+          APPCAST
+
+      - name: Commit appcast
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "chore: update appcast for v${{ env.VERSION }}"
+          git push origin HEAD:main
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -55,6 +110,8 @@ jobs:
             3. Right-click → Open the first time (unsigned build — Gatekeeper will ask once)
 
             Requires macOS 13 (Ventura) or later.
+
+            Once installed, Claudio checks for updates automatically. You can also trigger a check via **Menu → Check for Updates…**
           files: |
             ${{ env.ZIP }}
             ${{ env.SHA256 }}
