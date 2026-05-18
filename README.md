@@ -53,4 +53,4 @@ Usage data is only exchanged with `claude.ai`. Your session key is stored in you
 
 ## License
 
-MIT
+Copyright (c) 2026 Milo Guastamacchia. All rights reserved.
