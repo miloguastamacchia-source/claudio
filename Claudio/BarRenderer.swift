@@ -2,14 +2,14 @@ import AppKit
 
 // MARK: - Visual constants
 
-private let iconW: CGFloat = 36
+private let iconW: CGFloat = 24
 private let iconH: CGFloat = 22
-private let barW: CGFloat = 31
-private let barH: CGFloat = 6
+private let barW: CGFloat = 20
+private let barH: CGFloat = 4
 private let barX0: CGFloat = (iconW - barW) / 2
 private let sessionY: CGFloat = 13   // top bar (bottom-left origin)
-private let weeklyY: CGFloat = 3     // bottom bar (4px gap between bars)
-private let barCorner: CGFloat = 2.5
+private let weeklyY: CGFloat = 5     // bottom bar
+private let barCorner: CGFloat = 1.5
 private let iconBgAlpha: CGFloat = 0.35
 
 let menuBarH: CGFloat = 7
