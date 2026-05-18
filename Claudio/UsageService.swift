@@ -320,15 +320,22 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
         routineLimit = Int(rb["limit"] as? String ?? "5") ?? 5
     }
 
-    // prepaid credits — amount and last_paid_purchase_cents are in USD cents
-    // Subtract pending_invoice_amount_cents to match what the Console shows (net available)
+    // prepaid credits — response is { "credits": { "amount": ..., ... } }
+    // Values are in USD cents; pending_invoice_amount_cents subtracted for net available balance.
     var creditRemaining: Double = 0
     var creditTotal: Double = 0
-    if case .success(let creditsJson) = creditsResult, let cr = creditsJson as? [String: Any] {
-        let gross   = (cr["amount"] as? Int) ?? 0
-        let pending = (cr["pending_invoice_amount_cents"] as? Int) ?? 0
+    if case .success(let creditsJson) = creditsResult,
+       let top = creditsJson as? [String: Any],
+       let cr = top["credits"] as? [String: Any] {
+        func cents(_ key: String) -> Int {
+            if let n = cr[key] as? Int    { return n }
+            if let d = cr[key] as? Double { return Int(d) }
+            return 0
+        }
+        let gross   = cents("amount")
+        let pending = cents("pending_invoice_amount_cents")
         creditRemaining = Double(gross - pending) / 100
-        creditTotal     = Double((cr["last_paid_purchase_cents"] as? Int) ?? 0) / 100
+        creditTotal     = Double(cents("last_paid_purchase_cents")) / 100
     }
 
     let usedCents = (ov["used_credits"] as? Int) ?? 0

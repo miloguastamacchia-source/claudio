@@ -231,7 +231,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let cRemaining = d.creditRemaining
         let cTotal = d.creditTotal
-        let cSpentFrac = cTotal > 0 ? (cTotal - cRemaining) / cTotal : 0
+        // Bar shows remaining fraction — full = all credits intact, empties rightward as credits are spent
+        let cRemainingFrac = cTotal > 0 ? cRemaining / cTotal : 0
         let cLabel: String
         if cTotal > 0 {
             cLabel = String(format: "$%.2f / $%.2f", cRemaining, cTotal)
@@ -244,7 +245,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         sessionView.setData(value: "\(Int(sU))%", usageFrac: sU / 100, timeFrac: sT / 100, resetStr: "Resets in \(fmtReset(sR))")
         weeklyView.setData(value: "\(Int(wU))%", usageFrac: wU / 100, timeFrac: wT / 100, resetStr: "Resets in \(fmtReset(wR))")
         routineView.setData(value: "\(rUsed) / \(rLimit)", usageFrac: rFrac, timeFrac: 0, resetStr: "Resets daily")
-        apiCreditsView.setData(value: cLabel, usageFrac: cSpentFrac, timeFrac: 0, resetStr: "Prepaid API balance")
+        apiCreditsView.setData(value: cLabel, usageFrac: cRemainingFrac, timeFrac: 0, resetStr: "Prepaid API balance")
 
         if d.extraEnabled {
             let oU = d.overagePct

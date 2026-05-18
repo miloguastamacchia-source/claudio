@@ -2,7 +2,7 @@ import AppKit
 
 private let menuW: CGFloat = 250
 private let menuPad: CGFloat = 24
-private let viewH: CGFloat = 72
+private let viewH: CGFloat = 58
 
 class MetricMenuView: NSView {
     private var title: String
@@ -45,23 +45,23 @@ class MetricMenuView: NSView {
         let titleStr = NSAttributedString(string: title, attributes: [
             .font: fTitle, .foregroundColor: cLabel
         ])
-        titleStr.draw(at: NSPoint(x: menuPad, y: 14))
+        titleStr.draw(at: NSPoint(x: menuPad, y: 8))
 
         if !titleSuffix.isEmpty {
             let sfx = NSAttributedString(string: " \(titleSuffix)", attributes: [
                 .font: fVal, .foregroundColor: cSec
             ])
-            sfx.draw(at: NSPoint(x: menuPad + titleStr.size().width, y: 14))
+            sfx.draw(at: NSPoint(x: menuPad + titleStr.size().width, y: 8))
         }
 
         let valStr = NSAttributedString(string: value, attributes: [
             .font: fVal, .foregroundColor: cSec
         ])
-        valStr.draw(at: NSPoint(x: menuW - menuPad - valStr.size().width, y: 14))
+        valStr.draw(at: NSPoint(x: menuW - menuPad - valStr.size().width, y: 8))
 
         let bx = menuPad
         let bw = menuW - 2 * menuPad
-        let by: CGFloat = 36
+        let by: CGFloat = 28
         drawBar(x: bx, y: by, w: bw, h: menuBarH,
                 corner: menuBarCorner, fillFrac: usageFrac, tickFrac: timeFrac,
                 bgAlpha: 0.30)
@@ -69,7 +69,7 @@ class MetricMenuView: NSView {
         let resetStr = NSAttributedString(string: resetText, attributes: [
             .font: fReset, .foregroundColor: NSColor.secondaryLabelColor
         ])
-        resetStr.draw(at: NSPoint(x: menuPad, y: by + menuBarH + 6))
+        resetStr.draw(at: NSPoint(x: menuPad, y: by + menuBarH + 5))
     }
 }
 
