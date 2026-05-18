@@ -11,8 +11,8 @@ struct UsageData {
     var sessionReset: TimeInterval = 0
     var weeklyPct: Double = 0
     var weeklyReset: TimeInterval = 0
-    var sonnetPct: Double = 0
-    var sonnetReset: TimeInterval = 0
+    var routineUsed: Int = 0
+    var routineLimit: Int = 5
     var overagePct: Double = 0
     var overageReset: TimeInterval = 0
     var extraDollars: Double = 0
@@ -101,7 +101,7 @@ func saveSnapshot(_ data: UsageData) {
     let dict: [String: Any] = [
         "sessionPct": data.sessionPct, "sessionReset": data.sessionReset,
         "weeklyPct": data.weeklyPct, "weeklyReset": data.weeklyReset,
-        "sonnetPct": data.sonnetPct, "sonnetReset": data.sonnetReset,
+        "routineUsed": data.routineUsed, "routineLimit": data.routineLimit,
         "overagePct": data.overagePct, "overageReset": data.overageReset,
         "extraDollars": data.extraDollars, "extraEnabled": data.extraEnabled,
     ]
@@ -118,8 +118,8 @@ func loadSnapshot() -> (UsageData, TimeInterval)? {
         sessionReset: dict["sessionReset"] as? Double ?? 0,
         weeklyPct: dict["weeklyPct"] as? Double ?? 0,
         weeklyReset: dict["weeklyReset"] as? Double ?? 0,
-        sonnetPct: dict["sonnetPct"] as? Double ?? 0,
-        sonnetReset: dict["sonnetReset"] as? Double ?? 0,
+        routineUsed: dict["routineUsed"] as? Int ?? 0,
+        routineLimit: dict["routineLimit"] as? Int ?? 5,
         overagePct: dict["overagePct"] as? Double ?? 0,
         overageReset: dict["overageReset"] as? Double ?? 0,
         extraDollars: dict["extraDollars"] as? Double ?? 0,
@@ -229,6 +229,7 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     let group = DispatchGroup()
     var usageResult: ApiResult = .networkError("Not started")
     var overageResult: ApiResult = .networkError("Not started")
+    var routineResult: ApiResult = .networkError("Not started")
 
     group.enter()
     DispatchQueue.global().async {
@@ -239,6 +240,12 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     group.enter()
     DispatchQueue.global().async {
         overageResult = apiRequestDict(path: "/api/organizations/\(session.orgId)/overage_spend_limit", sessionKey: session.sessionKey)
+        group.leave()
+    }
+
+    group.enter()
+    DispatchQueue.global().async {
+        routineResult = apiRequestDict(path: "/api/organizations/\(session.orgId)/run-budget", sessionKey: session.sessionKey)
         group.leave()
     }
 
@@ -262,21 +269,23 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
         ov = [:]
     }
 
-    let usedCents = (ov["used_credits"] as? Int) ?? 0
-
-    // Write full usage response to a temp file for field discovery
-    if let prettyData = try? JSONSerialization.data(withJSONObject: usage, options: .prettyPrinted) {
-        let path = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("claudio_usage_debug.json")
-        try? prettyData.write(to: path)
+    // run-budget returns used/limit as strings
+    var routineUsed = 0
+    var routineLimit = 5
+    if case .success(let routineJson) = routineResult, let rb = routineJson as? [String: Any] {
+        routineUsed = Int(rb["used"] as? String ?? "0") ?? 0
+        routineLimit = Int(rb["limit"] as? String ?? "5") ?? 5
     }
+
+    let usedCents = (ov["used_credits"] as? Int) ?? 0
 
     return .success(UsageData(
         sessionPct: pct(usage["five_hour"] as? [String: Any]),
         sessionReset: rst(usage["five_hour"] as? [String: Any]),
         weeklyPct: pct(usage["seven_day"] as? [String: Any]),
         weeklyReset: rst(usage["seven_day"] as? [String: Any]),
-        sonnetPct: pct(usage["seven_day_sonnet"] as? [String: Any]),
-        sonnetReset: rst(usage["seven_day_sonnet"] as? [String: Any]),
+        routineUsed: routineUsed,
+        routineLimit: routineLimit,
         overagePct: (ov["utilization"] as? Double) ?? 0,
         overageReset: nextMonthTs(),
         extraDollars: Double(usedCents) / 100,

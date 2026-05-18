@@ -15,7 +15,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var sessionView: MetricMenuView!
     private var weeklyView: MetricMenuView!
-    private var sonnetView: MetricMenuView!
+    private var routineView: MetricMenuView!
     private var extraView: MetricMenuView!
     private var updatedItem: NSMenuItem!
     private var loginItem: NSMenuItem!
@@ -111,12 +111,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         sessionView = MetricMenuView(title: "Current session")
         weeklyView = MetricMenuView(title: "Weekly - All models")
-        sonnetView = MetricMenuView(title: "Weekly - Sonnet only")
+        routineView = MetricMenuView(title: "Daily routine runs")
         extraView = MetricMenuView(title: "Extra usage")
 
         addMetric(sessionView)
         addMetric(weeklyView)
-        addMetric(sonnetView)
+        addMetric(routineView)
         addMetric(extraView)
 
         updatedItem = NSMenuItem(title: "Refreshing\u{2026}  \u{21bb}", action: #selector(refreshClicked), keyEquivalent: "")
@@ -222,13 +222,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             applyIcon(makeIcon(sUsage: sU, sTime: sT, wUsage: wU, wTime: wT, isDark: isDarkMenuBar))
         }
 
-        let snU = d.sonnetPct
-        let snR = d.sonnetReset
-        let snT = elapsedPct(resetTs: snR, windowSecs: 7 * 24 * 3600)
+        let rUsed = d.routineUsed
+        let rLimit = d.routineLimit
+        let rFrac = rLimit > 0 ? Double(rUsed) / Double(rLimit) : 0
 
         sessionView.setData(value: "\(Int(sU))%", usageFrac: sU / 100, timeFrac: sT / 100, resetStr: "Resets in \(fmtReset(sR))")
         weeklyView.setData(value: "\(Int(wU))%", usageFrac: wU / 100, timeFrac: wT / 100, resetStr: "Resets in \(fmtReset(wR))")
-        sonnetView.setData(value: "\(Int(snU))%", usageFrac: snU / 100, timeFrac: snT / 100, resetStr: "Resets in \(fmtReset(snR))")
+        routineView.setData(value: "\(rUsed) / \(rLimit)", usageFrac: rFrac, timeFrac: 0, resetStr: "Resets daily")
 
         if d.extraEnabled {
             let oU = d.overagePct
@@ -298,7 +298,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         updatedItem.title = "Not logged in  \u{26a0}"
         sessionView.setData(value: "\u{2014}", usageFrac: 0, timeFrac: 0, resetStr: "\u{2014}")
         weeklyView.setData(value: "\u{2014}", usageFrac: 0, timeFrac: 0, resetStr: "\u{2014}")
-        sonnetView.setData(value: "\u{2014}", usageFrac: 0, timeFrac: 0, resetStr: "\u{2014}")
+        routineView.setData(value: "\u{2014}", usageFrac: 0, timeFrac: 0, resetStr: "\u{2014}")
         extraView.setTitle("Extra usage")
         extraView.setData(value: "\u{2014}", usageFrac: 0, timeFrac: 0, resetStr: "\u{2014}")
         updateAuthVisibility()
