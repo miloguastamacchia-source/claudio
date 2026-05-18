@@ -17,6 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var weeklyView: MetricMenuView!
     private var routineView: MetricMenuView!
     private var extraView: MetricMenuView!
+    private var apiCreditsView: MetricMenuView!
     private var updatedItem: NSMenuItem!
     private var loginItem: NSMenuItem!
     private var logoutItem: NSMenuItem!
@@ -113,11 +114,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         weeklyView = MetricMenuView(title: "Weekly - All models")
         routineView = MetricMenuView(title: "Daily routine runs")
         extraView = MetricMenuView(title: "Extra usage")
+        apiCreditsView = MetricMenuView(title: "API credits")
 
         addMetric(sessionView)
         addMetric(weeklyView)
         addMetric(routineView)
         addMetric(extraView)
+        addMetric(apiCreditsView)
 
         updatedItem = NSMenuItem(title: "Refreshing\u{2026}  \u{21bb}", action: #selector(refreshClicked), keyEquivalent: "")
         updatedItem.target = self
@@ -226,9 +229,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let rLimit = d.routineLimit
         let rFrac = rLimit > 0 ? Double(rUsed) / Double(rLimit) : 0
 
+        let cRemaining = d.creditRemaining
+        let cTotal = d.creditTotal
+        let cSpentFrac = cTotal > 0 ? (cTotal - cRemaining) / cTotal : 0
+        let cLabel: String
+        if cTotal > 0 {
+            cLabel = String(format: "$%.2f / $%.2f", cRemaining, cTotal)
+        } else if cRemaining > 0 {
+            cLabel = String(format: "$%.2f remaining", cRemaining)
+        } else {
+            cLabel = "—"
+        }
+
         sessionView.setData(value: "\(Int(sU))%", usageFrac: sU / 100, timeFrac: sT / 100, resetStr: "Resets in \(fmtReset(sR))")
         weeklyView.setData(value: "\(Int(wU))%", usageFrac: wU / 100, timeFrac: wT / 100, resetStr: "Resets in \(fmtReset(wR))")
         routineView.setData(value: "\(rUsed) / \(rLimit)", usageFrac: rFrac, timeFrac: 0, resetStr: "Resets daily")
+        apiCreditsView.setData(value: cLabel, usageFrac: cSpentFrac, timeFrac: 0, resetStr: "Prepaid API balance")
 
         if d.extraEnabled {
             let oU = d.overagePct
@@ -299,6 +315,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         sessionView.setData(value: "\u{2014}", usageFrac: 0, timeFrac: 0, resetStr: "\u{2014}")
         weeklyView.setData(value: "\u{2014}", usageFrac: 0, timeFrac: 0, resetStr: "\u{2014}")
         routineView.setData(value: "\u{2014}", usageFrac: 0, timeFrac: 0, resetStr: "\u{2014}")
+        apiCreditsView.setData(value: "\u{2014}", usageFrac: 0, timeFrac: 0, resetStr: "\u{2014}")
         extraView.setTitle("Extra usage")
         extraView.setData(value: "\u{2014}", usageFrac: 0, timeFrac: 0, resetStr: "\u{2014}")
         updateAuthVisibility()

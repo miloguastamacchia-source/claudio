@@ -17,6 +17,8 @@ struct UsageData {
     var overageReset: TimeInterval = 0
     var extraDollars: Double = 0
     var extraEnabled: Bool = false
+    var creditRemaining: Double = 0
+    var creditTotal: Double = 0
 }
 
 enum UsageResult {
@@ -69,6 +71,7 @@ private func keychainDelete(service: String, account: String) -> Bool {
 struct Session {
     let sessionKey: String
     let orgId: String
+    var consoleOrgId: String = ""
 }
 
 func loadSession() -> Session? {
@@ -76,11 +79,15 @@ func loadSession() -> Session? {
           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String],
           let key = dict["sessionKey"], let org = dict["orgId"]
     else { return nil }
-    return Session(sessionKey: key, orgId: org)
+    return Session(sessionKey: key, orgId: org, consoleOrgId: dict["consoleOrgId"] ?? "")
 }
 
 func saveSession(_ session: Session) {
-    let dict: [String: String] = ["sessionKey": session.sessionKey, "orgId": session.orgId]
+    let dict: [String: String] = [
+        "sessionKey": session.sessionKey,
+        "orgId": session.orgId,
+        "consoleOrgId": session.consoleOrgId,
+    ]
     if let data = try? JSONSerialization.data(withJSONObject: dict) {
         if !keychainSave(service: keychainService, account: keychainAccount, data: data) {
             log.error("Failed to save session to keychain")
@@ -104,6 +111,7 @@ func saveSnapshot(_ data: UsageData) {
         "routineUsed": data.routineUsed, "routineLimit": data.routineLimit,
         "overagePct": data.overagePct, "overageReset": data.overageReset,
         "extraDollars": data.extraDollars, "extraEnabled": data.extraEnabled,
+        "creditRemaining": data.creditRemaining, "creditTotal": data.creditTotal,
     ]
     UserDefaults.standard.set(dict, forKey: snapshotKey)
     UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: snapshotTimeKey)
@@ -123,7 +131,9 @@ func loadSnapshot() -> (UsageData, TimeInterval)? {
         overagePct: dict["overagePct"] as? Double ?? 0,
         overageReset: dict["overageReset"] as? Double ?? 0,
         extraDollars: dict["extraDollars"] as? Double ?? 0,
-        extraEnabled: dict["extraEnabled"] as? Bool ?? false
+        extraEnabled: dict["extraEnabled"] as? Bool ?? false,
+        creditRemaining: dict["creditRemaining"] as? Double ?? 0,
+        creditTotal: dict["creditTotal"] as? Double ?? 0
     )
     return (data, ts)
 }
@@ -155,10 +165,12 @@ private enum ApiResult {
     case networkError(String)
 }
 
-private func apiRequest(path: String, sessionKey: String) -> ApiResult {
-    guard let url = URL(string: "https://claude.ai\(path)") else { return .networkError("Bad URL") }
+private func apiRequest(path: String, sessionKey: String, baseURL: String = "https://claude.ai") -> ApiResult {
+    guard let url = URL(string: "\(baseURL)\(path)") else { return .networkError("Bad URL") }
     var req = URLRequest(url: url, timeoutInterval: 15)
     for (k, v) in browserHeaders { req.setValue(v, forHTTPHeaderField: k) }
+    req.setValue(baseURL, forHTTPHeaderField: "origin")
+    req.setValue("\(baseURL)/", forHTTPHeaderField: "referer")
     req.setValue("sessionKey=\(sessionKey)", forHTTPHeaderField: "Cookie")
 
     var result: ApiResult = .networkError("Request timed out")
@@ -201,8 +213,8 @@ private func apiRequest(path: String, sessionKey: String) -> ApiResult {
     return result
 }
 
-private func apiRequestDict(path: String, sessionKey: String) -> ApiResult {
-    let result = apiRequest(path: path, sessionKey: sessionKey)
+private func apiRequestDict(path: String, sessionKey: String, baseURL: String = "https://claude.ai") -> ApiResult {
+    let result = apiRequest(path: path, sessionKey: sessionKey, baseURL: baseURL)
     switch result {
     case .success(let json):
         if let dict = json as? [String: Any] {
@@ -223,13 +235,32 @@ func validateAndGetOrg(sessionKey: String) -> String? {
     return uuid
 }
 
+func validateAndGetConsoleOrg(sessionKey: String) -> String? {
+    guard case .success(let json) = apiRequest(path: "/api/organizations", sessionKey: sessionKey, baseURL: "https://platform.claude.com"),
+          let arr = json as? [[String: Any]],
+          let first = arr.first,
+          let uuid = first["uuid"] as? String
+    else { return nil }
+    return uuid
+}
+
 // MARK: - Fetch usage
 
 private func fetchUsageSessionKey(session: Session) -> UsageResult {
+    // Resolve console org ID — fetch and cache if missing (e.g. existing sessions pre-v1.5)
+    var session = session
+    if session.consoleOrgId.isEmpty {
+        if let cid = validateAndGetConsoleOrg(sessionKey: session.sessionKey) {
+            session.consoleOrgId = cid
+            saveSession(session)
+        }
+    }
+
     let group = DispatchGroup()
     var usageResult: ApiResult = .networkError("Not started")
     var overageResult: ApiResult = .networkError("Not started")
     var routineResult: ApiResult = .networkError("Not started")
+    var creditsResult: ApiResult = .networkError("Not started")
 
     group.enter()
     DispatchQueue.global().async {
@@ -246,6 +277,18 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     group.enter()
     DispatchQueue.global().async {
         routineResult = apiRequestDict(path: "/api/organizations/\(session.orgId)/run-budget", sessionKey: session.sessionKey)
+        group.leave()
+    }
+
+    group.enter()
+    DispatchQueue.global().async {
+        if !session.consoleOrgId.isEmpty {
+            creditsResult = apiRequestDict(
+                path: "/api/organizations/\(session.consoleOrgId)/prepaid/credits",
+                sessionKey: session.sessionKey,
+                baseURL: "https://platform.claude.com"
+            )
+        }
         group.leave()
     }
 
@@ -277,6 +320,14 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
         routineLimit = Int(rb["limit"] as? String ?? "5") ?? 5
     }
 
+    // prepaid credits — amount and last_paid_purchase_cents are in USD cents
+    var creditRemaining: Double = 0
+    var creditTotal: Double = 0
+    if case .success(let creditsJson) = creditsResult, let cr = creditsJson as? [String: Any] {
+        creditRemaining = Double((cr["amount"] as? Int) ?? 0) / 100
+        creditTotal     = Double((cr["last_paid_purchase_cents"] as? Int) ?? 0) / 100
+    }
+
     let usedCents = (ov["used_credits"] as? Int) ?? 0
 
     return .success(UsageData(
@@ -289,7 +340,9 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
         overagePct: (ov["utilization"] as? Double) ?? 0,
         overageReset: nextMonthTs(),
         extraDollars: Double(usedCents) / 100,
-        extraEnabled: (ov["is_enabled"] as? Bool) ?? false
+        extraEnabled: (ov["is_enabled"] as? Bool) ?? false,
+        creditRemaining: creditRemaining,
+        creditTotal: creditTotal
     ))
 }
 

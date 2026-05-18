@@ -124,7 +124,8 @@ class LoginWindow: NSObject, WKNavigationDelegate {
                 }
                 return
             }
-            saveSession(Session(sessionKey: key, orgId: orgId))
+            let consoleOrgId = validateAndGetConsoleOrg(sessionKey: key) ?? ""
+            saveSession(Session(sessionKey: key, orgId: orgId, consoleOrgId: consoleOrgId))
             DispatchQueue.main.async {
                 self?.close()
                 self?.onSuccess?(key, orgId)
