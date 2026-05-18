@@ -320,13 +320,12 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
         routineLimit = Int(rb["limit"] as? String ?? "5") ?? 5
     }
 
-    // prepaid credits — response is { "credits": { "amount": ..., ... } }
-    // Values are in USD cents; pending_invoice_amount_cents subtracted for net available balance.
+    // prepaid credits — response is the credits object directly:
+    // { "amount": <cents>, "last_paid_purchase_cents": <cents>, "pending_invoice_amount_cents": <cents|null>, ... }
     var creditRemaining: Double = 0
     var creditTotal: Double = 0
     if case .success(let creditsJson) = creditsResult,
-       let top = creditsJson as? [String: Any],
-       let cr = top["credits"] as? [String: Any] {
+       let cr = creditsJson as? [String: Any] {
         func cents(_ key: String) -> Int {
             if let n = cr[key] as? Int    { return n }
             if let d = cr[key] as? Double { return Int(d) }
