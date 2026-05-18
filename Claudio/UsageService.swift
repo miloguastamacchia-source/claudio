@@ -349,6 +349,18 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     var creditRemaining: Double = 0
     var creditTotal: Double = 0
 
+    // Debug: log consoleOrgId and raw credits result
+    var debugOut = "consoleOrgId: \(session.consoleOrgId)\n"
+    switch creditsResult {
+    case .success(let j):
+        if let data = try? JSONSerialization.data(withJSONObject: j, options: .prettyPrinted),
+           let str = String(data: data, encoding: .utf8) { debugOut += "success:\n\(str)" }
+        else { debugOut += "success (unprintable)" }
+    case .authFailure:  debugOut += "authFailure"
+    case .networkError(let m): debugOut += "networkError: \(m)"
+    }
+    try? debugOut.write(toFile: "/tmp/claudio_credits2_debug.txt", atomically: true, encoding: .utf8)
+
     if case .success(let creditsJson) = creditsResult,
        let cr = creditsJson as? [String: Any] {
         func cents(_ key: String) -> Int {
