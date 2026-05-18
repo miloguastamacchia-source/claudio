@@ -264,6 +264,12 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
 
     let usedCents = (ov["used_credits"] as? Int) ?? 0
 
+    // Log the full usage response so we can discover available fields
+    if let prettyData = try? JSONSerialization.data(withJSONObject: usage, options: .prettyPrinted),
+       let prettyStr = String(data: prettyData, encoding: .utf8) {
+        log.debug("Usage API response:\n\(prettyStr)")
+    }
+
     return .success(UsageData(
         sessionPct: pct(usage["five_hour"] as? [String: Any]),
         sessionReset: rst(usage["five_hour"] as? [String: Any]),
