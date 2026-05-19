@@ -171,7 +171,9 @@ private func apiRequest(path: String, sessionKey: String, baseURL: String = "htt
     for (k, v) in browserHeaders { req.setValue(v, forHTTPHeaderField: k) }
     req.setValue(baseURL, forHTTPHeaderField: "origin")
     req.setValue("\(baseURL)/", forHTTPHeaderField: "referer")
-    req.setValue("sessionKey=\(sessionKey)", forHTTPHeaderField: "Cookie")
+    // platform.claude.com uses "sessionKeyLC"; claude.ai uses "sessionKey"
+    let cookieName = baseURL.contains("platform.claude.com") ? "sessionKeyLC" : "sessionKey"
+    req.setValue("\(cookieName)=\(sessionKey)", forHTTPHeaderField: "Cookie")
 
     var result: ApiResult = .networkError("Request timed out")
     let sem = DispatchSemaphore(value: 0)
@@ -236,25 +238,7 @@ func validateAndGetOrg(sessionKey: String) -> String? {
 }
 
 func validateAndGetConsoleOrg(sessionKey: String, excludingOrgId: String) -> String? {
-    let result = apiRequest(path: "/api/organizations", sessionKey: sessionKey, baseURL: "https://platform.claude.com")
-
-    // Debug: dump the raw org list so we can see what platform.claude.com returns
-    switch result {
-    case .success(let j):
-        if let data = try? JSONSerialization.data(withJSONObject: j, options: .prettyPrinted),
-           let str = String(data: data, encoding: .utf8) {
-            try? "excludingOrgId: \(excludingOrgId)\n\(str)".write(
-                toFile: "/tmp/claudio_console_orgs_debug.txt", atomically: true, encoding: .utf8)
-        }
-    case .authFailure:
-        try? "authFailure (excludingOrgId: \(excludingOrgId))".write(
-            toFile: "/tmp/claudio_console_orgs_debug.txt", atomically: true, encoding: .utf8)
-    case .networkError(let msg):
-        try? "networkError: \(msg) (excludingOrgId: \(excludingOrgId))".write(
-            toFile: "/tmp/claudio_console_orgs_debug.txt", atomically: true, encoding: .utf8)
-    }
-
-    guard case .success(let json) = result,
+    guard case .success(let json) = apiRequest(path: "/api/organizations", sessionKey: sessionKey, baseURL: "https://platform.claude.com"),
           let arr = json as? [[String: Any]]
     else { return nil }
     // platform.claude.com returns multiple orgs including the claude.ai org —
@@ -306,26 +290,13 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
 
     group.enter()
     DispatchQueue.global().async {
-        var log = "consoleOrgId='\(session.consoleOrgId)' isEmpty=\(session.consoleOrgId.isEmpty)\n"
         if !session.consoleOrgId.isEmpty {
-            let r = apiRequestDict(
+            creditsResult = apiRequestDict(
                 path: "/api/organizations/\(session.consoleOrgId)/prepaid/credits",
                 sessionKey: session.sessionKey,
                 baseURL: "https://platform.claude.com"
             )
-            creditsResult = r
-            switch r {
-            case .success(let j):
-                if let data = try? JSONSerialization.data(withJSONObject: j, options: .prettyPrinted),
-                   let str = String(data: data, encoding: .utf8) { log += "success:\n\(str)" }
-                else { log += "success (unprintable)" }
-            case .authFailure:        log += "authFailure"
-            case .networkError(let m): log += "networkError: \(m)"
-            }
-        } else {
-            log += "SKIPPED — consoleOrgId is empty"
         }
-        try? log.write(toFile: "/tmp/claudio_credits3_debug.txt", atomically: true, encoding: .utf8)
         group.leave()
     }
 
