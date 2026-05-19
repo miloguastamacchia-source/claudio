@@ -223,9 +223,10 @@ class LoginWindow: NSObject, WKNavigationDelegate {
                 return
             }
             var req = URLRequest(url: url, timeoutInterval: 10)
+            req.httpShouldHandleCookies = false  // don't let URLSession merge its own store
             req.setValue(self.capturedPlatformCookies, forHTTPHeaderField: "Cookie")
-            req.setValue("https://platform.claude.com", forHTTPHeaderField: "origin")
-            req.setValue("https://platform.claude.com/", forHTTPHeaderField: "referer")
+            req.setValue("https://platform.claude.com", forHTTPHeaderField: "Origin")
+            req.setValue("https://platform.claude.com/", forHTTPHeaderField: "Referer")
             req.setValue(loginUserAgent, forHTTPHeaderField: "User-Agent")  // Safari — matches WebView
             req.setValue("application/json", forHTTPHeaderField: "Accept")
 

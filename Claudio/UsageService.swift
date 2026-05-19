@@ -192,18 +192,23 @@ private func apiRequest(path: String, sessionKey: String, baseURL: String = "htt
                         sessionKeyLC: String = "", platformCookies: String = "") -> ApiResult {
     guard let url = URL(string: "\(baseURL)\(path)") else { return .networkError("Bad URL") }
     var req = URLRequest(url: url, timeoutInterval: 15)
-    for (k, v) in browserHeaders { req.setValue(v, forHTTPHeaderField: k) }
-    req.setValue(baseURL, forHTTPHeaderField: "origin")
-    req.setValue("\(baseURL)/", forHTTPHeaderField: "referer")
+    // Never let URLSession merge its own cookie store — we set cookies explicitly.
+    req.httpShouldHandleCookies = false
     if baseURL.contains("platform.claude.com") {
-        // Use the full cookie jar captured at login (mirrors browser behaviour);
-        // fall back to just sessionKeyLC if platformCookies wasn't stored yet.
+        // Use a clean minimal header set matching the Safari WebView that obtained the cookies.
+        // Chrome-specific sec-fetch-* headers and anthropic-client-* headers don't belong here
+        // and can cause Cloudflare or server-side rejections.
         let cookie = platformCookies.isEmpty ? "sessionKeyLC=\(sessionKeyLC)" : platformCookies
         req.setValue(cookie, forHTTPHeaderField: "Cookie")
-        // Use Safari user agent — matches the WebView that obtained the cookies.
-        // Chrome UA can trigger Cloudflare blocks when cookie jar doesn't have cf_clearance.
-        req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15", forHTTPHeaderField: "user-agent")
+        req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
+        req.setValue("https://platform.claude.com", forHTTPHeaderField: "Origin")
+        req.setValue("https://platform.claude.com/", forHTTPHeaderField: "Referer")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
     } else {
+        for (k, v) in browserHeaders { req.setValue(v, forHTTPHeaderField: k) }
+        req.setValue(baseURL, forHTTPHeaderField: "origin")
+        req.setValue("\(baseURL)/", forHTTPHeaderField: "referer")
         req.setValue("sessionKey=\(sessionKey)", forHTTPHeaderField: "Cookie")
     }
 
@@ -256,6 +261,8 @@ private func apiRequestDict(path: String, sessionKey: String, baseURL: String = 
         if let dict = json as? [String: Any] {
             return .success(dict)
         }
+        // Log unexpected structure to help diagnose
+        log.warning("apiRequestDict: expected dict on \(path), got \(String(describing: type(of: json)))")
         return .networkError("Unexpected response format")
     default:
         return result
@@ -369,17 +376,30 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     var creditRemaining: Double = 0
     var creditTotal: Double = 0
 
-    if case .success(let creditsJson) = creditsResult,
-       let cr = creditsJson as? [String: Any] {
-        func cents(_ key: String) -> Int {
-            if let n = cr[key] as? Int    { return n }
-            if let d = cr[key] as? Double { return Int(d) }
-            return 0
+    switch creditsResult {
+    case .success(let creditsJson):
+        if let cr = creditsJson as? [String: Any] {
+            func cents(_ key: String) -> Int {
+                if let n = cr[key] as? Int    { return n }
+                if let d = cr[key] as? Double { return Int(d) }
+                return 0
+            }
+            let gross   = cents("amount")
+            let pending = cents("pending_invoice_amount_cents")
+            creditRemaining = Double(gross - pending) / 100
+            creditTotal     = Double(cents("last_paid_purchase_cents")) / 100
+            log.info("Credits: remaining=\(creditRemaining) total=\(creditTotal) (gross=\(gross) pending=\(pending))")
+        } else {
+            log.warning("Credits response was not a dict: \(String(describing: type(of: creditsJson)))")
         }
-        let gross   = cents("amount")
-        let pending = cents("pending_invoice_amount_cents")
-        creditRemaining = Double(gross - pending) / 100
-        creditTotal     = Double(cents("last_paid_purchase_cents")) / 100
+    case .authFailure:
+        log.warning("Credits auth failure — platformCookies length=\(session.platformCookies.count)")
+    case .networkError(let msg):
+        if session.consoleOrgId.isEmpty {
+            log.info("Credits skipped — no consoleOrgId")
+        } else {
+            log.warning("Credits network error: \(msg)")
+        }
     }
 
     let usedCents = (ov["used_credits"] as? Int) ?? 0
