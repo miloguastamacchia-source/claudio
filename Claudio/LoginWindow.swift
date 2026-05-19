@@ -186,59 +186,56 @@ class LoginWindow: NSObject, WKNavigationDelegate {
         guard awaitingSessionKeyLC, webView.url?.host == "platform.claude.com" else { return }
         awaitingSessionKeyLC = false  // prevent timeout from double-firing
 
-        // After the page finishes loading, the WebView's cookie store has ALL cookies set by
-        // platform.claude.com (sessionKeyLC, anthropic-device-id, __ssid, etc.).
-        // We build a full cookie header from the store and use it for a URLSession request —
-        // this mirrors what the browser sends and gets past platform.claude.com's auth.
-        webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
+        // Use JS inside the WebView to fetch the org list — it has the complete cookie context
+        // so no domain filtering or URLSession auth issues. The missing `return` was the bug
+        // that killed this approach in v1.15; callAsyncJavaScript needs an explicit return.
+        let js = """
+        const r = await fetch('/api/organizations');
+        const d = await r.json();
+        return JSON.stringify(d);
+        """
+        webView.callAsyncJavaScript(js, arguments: [:], in: nil, in: .page) { [weak self] jsResult in
             guard let self else { return }
 
-            let sessionKeyLC = cookies.first { $0.name == "sessionKeyLC" && !$0.value.isEmpty }?.value ?? ""
-
-            // Build cookie header for platform.claude.com.
-            // Include platform.claude.com domain AND .claude.com (shared parent) cookies.
-            // Exclude .claude.ai cookies to avoid duplicates (e.g. anthropic-device-id).
-            var cookieParts = cookies
-                .filter { c in
-                    let d = c.domain
-                    return d == "platform.claude.com" || d == ".platform.claude.com"
-                        || d == ".claude.com"
-                }
-                .map { "\($0.name)=\($0.value)" }
-            // Always include sessionKeyLC explicitly — its domain may vary
-            if !sessionKeyLC.isEmpty, !cookieParts.contains(where: { $0.hasPrefix("sessionKeyLC=") }) {
-                cookieParts.append("sessionKeyLC=\(sessionKeyLC)")
-            }
-            self.capturedPlatformCookies = cookieParts.joined(separator: "; ")
-
-            guard let url = URL(string: "https://platform.claude.com/api/organizations") else {
-                self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: sessionKeyLC)
-                return
-            }
-            var req = URLRequest(url: url, timeoutInterval: 10)
-            req.setValue(self.capturedPlatformCookies, forHTTPHeaderField: "Cookie")
-            req.setValue("https://platform.claude.com", forHTTPHeaderField: "origin")
-            req.setValue("https://platform.claude.com/", forHTTPHeaderField: "referer")
-            req.setValue(loginUserAgent, forHTTPHeaderField: "User-Agent")
-            req.setValue("application/json", forHTTPHeaderField: "Accept")
-
-            URLSession.shared.dataTask(with: req) { data, _, _ in
-                var consoleOrgId = ""
-                if let data,
-                   let orgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                    for org in orgs {
-                        if let uuid = org["uuid"] as? String,
-                           (org["billing_type"] as? String) == "prepaid" {
-                            consoleOrgId = uuid
-                            break
-                        }
+            if case .success(let val) = jsResult,
+               let str = val as? String, !str.isEmpty,
+               let data = str.data(using: .utf8),
+               let orgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                for org in orgs {
+                    if let uuid = org["uuid"] as? String,
+                       (org["billing_type"] as? String) == "prepaid" {
+                        self.capturedConsoleOrgId = uuid
+                        break
                     }
                 }
-                DispatchQueue.main.async {
-                    self.capturedConsoleOrgId = consoleOrgId
-                    self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: sessionKeyLC)
+            }
+
+            // Capture cookies for persistent storage (background refresh calls)
+            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+                let sessionKeyLC = cookies.first { $0.name == "sessionKeyLC" && !$0.value.isEmpty }?.value ?? ""
+
+                // Deduplicate by name, preferring platform.claude.com domain cookies.
+                // Exclude third-party and short-lived Cloudflare cookies.
+                let sorted = cookies.sorted { a, _ in
+                    let d = a.domain
+                    return d == "platform.claude.com" || d == ".platform.claude.com"
                 }
-            }.resume()
+                var seen = Set<String>()
+                var parts: [String] = []
+                for c in sorted {
+                    let d = c.domain
+                    guard d.contains("claude") else { continue }           // skip google etc.
+                    guard !c.name.hasPrefix("__cf") && c.name != "cf_clearance" && c.name != "_cfuvid" else { continue }
+                    if seen.insert(c.name).inserted {
+                        parts.append("\(c.name)=\(c.value)")
+                    }
+                }
+                if !sessionKeyLC.isEmpty && !seen.contains("sessionKeyLC") {
+                    parts.append("sessionKeyLC=\(sessionKeyLC)")
+                }
+                self.capturedPlatformCookies = parts.joined(separator: "; ")
+                self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: sessionKeyLC)
+            }
         }
     }
 
