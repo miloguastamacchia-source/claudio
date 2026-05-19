@@ -186,56 +186,66 @@ class LoginWindow: NSObject, WKNavigationDelegate {
         guard awaitingSessionKeyLC, webView.url?.host == "platform.claude.com" else { return }
         awaitingSessionKeyLC = false  // prevent timeout from double-firing
 
-        // Use JS inside the WebView to fetch the org list — it has the complete cookie context
-        // so no domain filtering or URLSession auth issues. The missing `return` was the bug
-        // that killed this approach in v1.15; callAsyncJavaScript needs an explicit return.
-        let js = """
-        const r = await fetch('/api/organizations');
-        const d = await r.json();
-        return JSON.stringify(d);
-        """
-        webView.callAsyncJavaScript(js, arguments: [:], in: nil, in: .page) { [weak self] jsResult in
+        // Read all cookies from the WebView store, then use URLSession with the full set.
+        // callAsyncJavaScript failed because the page isn't in an authenticated state
+        // when didFinishNavigation fires (fetch returns 401). URLSession with the full
+        // WebView cookie jar (matching the Safari user agent) mirrors what worked in v1.17.
+        webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
             guard let self else { return }
 
-            if case .success(let val) = jsResult,
-               let str = val as? String, !str.isEmpty,
-               let data = str.data(using: .utf8),
-               let orgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                for org in orgs {
-                    if let uuid = org["uuid"] as? String,
-                       (org["billing_type"] as? String) == "prepaid" {
-                        self.capturedConsoleOrgId = uuid
-                        break
-                    }
+            let sessionKeyLC = cookies.first { $0.name == "sessionKeyLC" && !$0.value.isEmpty }?.value ?? ""
+
+            // Deduplicate: platform.claude.com cookies take priority over same-named claude.ai cookies.
+            // Include all Cloudflare cookies — they may be required for the request to pass.
+            // Skip pure third-party domains (google, intercom, etc.).
+            let prioritised = cookies.sorted { a, b in
+                let pa = a.domain == "platform.claude.com" || a.domain == ".platform.claude.com"
+                let pb = b.domain == "platform.claude.com" || b.domain == ".platform.claude.com"
+                return pa && !pb
+            }
+            var seen = Set<String>()
+            var parts: [String] = []
+            for c in prioritised {
+                let d = c.domain
+                guard d.contains("claude") || d.contains("anthropic") else { continue }
+                if seen.insert(c.name).inserted {
+                    parts.append("\(c.name)=\(c.value)")
                 }
             }
+            if !sessionKeyLC.isEmpty && !seen.contains("sessionKeyLC") {
+                parts.append("sessionKeyLC=\(sessionKeyLC)")
+            }
+            self.capturedPlatformCookies = parts.joined(separator: "; ")
 
-            // Capture cookies for persistent storage (background refresh calls)
-            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
-                let sessionKeyLC = cookies.first { $0.name == "sessionKeyLC" && !$0.value.isEmpty }?.value ?? ""
-
-                // Deduplicate by name, preferring platform.claude.com domain cookies.
-                // Exclude third-party and short-lived Cloudflare cookies.
-                let sorted = cookies.sorted { a, _ in
-                    let d = a.domain
-                    return d == "platform.claude.com" || d == ".platform.claude.com"
-                }
-                var seen = Set<String>()
-                var parts: [String] = []
-                for c in sorted {
-                    let d = c.domain
-                    guard d.contains("claude") else { continue }           // skip google etc.
-                    guard !c.name.hasPrefix("__cf") && c.name != "cf_clearance" && c.name != "_cfuvid" else { continue }
-                    if seen.insert(c.name).inserted {
-                        parts.append("\(c.name)=\(c.value)")
-                    }
-                }
-                if !sessionKeyLC.isEmpty && !seen.contains("sessionKeyLC") {
-                    parts.append("sessionKeyLC=\(sessionKeyLC)")
-                }
-                self.capturedPlatformCookies = parts.joined(separator: "; ")
+            // Fetch org list via URLSession using the full cookie set + matching Safari UA
+            guard let url = URL(string: "https://platform.claude.com/api/organizations") else {
                 self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: sessionKeyLC)
+                return
             }
+            var req = URLRequest(url: url, timeoutInterval: 10)
+            req.setValue(self.capturedPlatformCookies, forHTTPHeaderField: "Cookie")
+            req.setValue("https://platform.claude.com", forHTTPHeaderField: "origin")
+            req.setValue("https://platform.claude.com/", forHTTPHeaderField: "referer")
+            req.setValue(loginUserAgent, forHTTPHeaderField: "User-Agent")  // Safari — matches WebView
+            req.setValue("application/json", forHTTPHeaderField: "Accept")
+
+            URLSession.shared.dataTask(with: req) { data, _, _ in
+                var consoleOrgId = ""
+                if let data,
+                   let orgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                    for org in orgs {
+                        if let uuid = org["uuid"] as? String,
+                           (org["billing_type"] as? String) == "prepaid" {
+                            consoleOrgId = uuid
+                            break
+                        }
+                    }
+                }
+                DispatchQueue.main.async {
+                    self.capturedConsoleOrgId = consoleOrgId
+                    self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: sessionKeyLC)
+                }
+            }.resume()
         }
     }
 

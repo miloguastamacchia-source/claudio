@@ -200,6 +200,9 @@ private func apiRequest(path: String, sessionKey: String, baseURL: String = "htt
         // fall back to just sessionKeyLC if platformCookies wasn't stored yet.
         let cookie = platformCookies.isEmpty ? "sessionKeyLC=\(sessionKeyLC)" : platformCookies
         req.setValue(cookie, forHTTPHeaderField: "Cookie")
+        // Use Safari user agent — matches the WebView that obtained the cookies.
+        // Chrome UA can trigger Cloudflare blocks when cookie jar doesn't have cf_clearance.
+        req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15", forHTTPHeaderField: "user-agent")
     } else {
         req.setValue("sessionKey=\(sessionKey)", forHTTPHeaderField: "Cookie")
     }
