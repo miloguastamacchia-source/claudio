@@ -412,7 +412,7 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
         weeklyReset: rst(usage["seven_day"] as? [String: Any]),
         routineUsed: routineUsed,
         routineLimit: routineLimit,
-        overagePct: (ov["utilization"] as? Double) ?? 0,
+        overagePct: ((ov["utilization"] as? Double) ?? 0) * 100,
         overageReset: nextMonthTs(),
         extraDollars: Double(usedCents) / 100,
         extraEnabled: (ov["is_enabled"] as? Bool) ?? false,
