@@ -1,5 +1,5 @@
 import Foundation
-import Security
+import Security  // still needed for Keychain migration read
 import os
 
 let log = Logger(subsystem: "com.claudio.app", category: "general")
@@ -27,27 +27,23 @@ enum UsageResult {
     case error(String)
 }
 
-// MARK: - Keychain (Claudio-owned)
+// MARK: - Session file storage
 
-private let keychainService = "claudio"
-private let keychainAccount = "session"
-
-private func keychainSave(service: String, account: String, data: Data) -> Bool {
-    keychainDelete(service: service, account: account)
-    let query: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: service,
-        kSecAttrAccount as String: account,
-        kSecValueData as String: data,
-    ]
-    return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
+private var sessionFileURL: URL {
+    let fm = FileManager.default
+    let support = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    let dir = support.appendingPathComponent("Claudio", isDirectory: true)
+    try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+    return dir.appendingPathComponent("session.json")
 }
 
-private func keychainLoad(service: String, account: String) -> Data? {
+// MARK: - Legacy Keychain helpers (used only for one-time migration)
+
+private func keychainLoad() -> Data? {
     let query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: service,
-        kSecAttrAccount as String: account,
+        kSecAttrService as String: "claudio",
+        kSecAttrAccount as String: "session",
         kSecReturnData as String: true,
         kSecMatchLimit as String: kSecMatchLimitOne,
     ]
@@ -57,11 +53,11 @@ private func keychainLoad(service: String, account: String) -> Data? {
 }
 
 @discardableResult
-private func keychainDelete(service: String, account: String) -> Bool {
+private func keychainDelete() -> Bool {
     let query: [String: Any] = [
         kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: service,
-        kSecAttrAccount as String: account,
+        kSecAttrService as String: "claudio",
+        kSecAttrAccount as String: "session",
     ]
     return SecItemDelete(query as CFDictionary) == errSecSuccess
 }
@@ -76,15 +72,31 @@ struct Session {
     var platformCookies: String = ""     // full cookie header for platform.claude.com requests
 }
 
-func loadSession() -> Session? {
-    guard let data = keychainLoad(service: keychainService, account: keychainAccount),
-          let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String],
-          let key = dict["sessionKey"], let org = dict["orgId"]
-    else { return nil }
+private func sessionDictToSession(_ dict: [String: String]) -> Session? {
+    guard let key = dict["sessionKey"], let org = dict["orgId"] else { return nil }
     return Session(sessionKey: key, orgId: org,
                    consoleOrgId: dict["consoleOrgId"] ?? "",
                    sessionKeyLC: dict["sessionKeyLC"] ?? "",
                    platformCookies: dict["platformCookies"] ?? "")
+}
+
+func loadSession() -> Session? {
+    // Primary: file storage
+    if let data = try? Data(contentsOf: sessionFileURL),
+       let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+       let session = sessionDictToSession(dict) {
+        return session
+    }
+    // One-time migration from Keychain (older versions stored session there)
+    if let data = keychainLoad(),
+       let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+       let session = sessionDictToSession(dict) {
+        saveSession(session)      // write to file
+        keychainDelete()          // remove from keychain — no more password prompts
+        log.info("Migrated session from Keychain to file storage")
+        return session
+    }
+    return nil
 }
 
 func saveSession(_ session: Session) {
@@ -95,15 +107,19 @@ func saveSession(_ session: Session) {
         "sessionKeyLC": session.sessionKeyLC,
         "platformCookies": session.platformCookies,
     ]
-    if let data = try? JSONSerialization.data(withJSONObject: dict) {
-        if !keychainSave(service: keychainService, account: keychainAccount, data: data) {
-            log.error("Failed to save session to keychain")
-        }
+    guard let data = try? JSONSerialization.data(withJSONObject: dict, options: .prettyPrinted) else { return }
+    let url = sessionFileURL
+    do {
+        try data.write(to: url, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    } catch {
+        log.error("Failed to save session: \(error.localizedDescription)")
     }
 }
 
 func clearSession() {
-    keychainDelete(service: keychainService, account: keychainAccount)
+    try? FileManager.default.removeItem(at: sessionFileURL)
+    keychainDelete()  // clean up legacy keychain entry if present
 }
 
 // MARK: - Usage snapshot persistence

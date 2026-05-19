@@ -195,9 +195,16 @@ class LoginWindow: NSObject, WKNavigationDelegate {
 
             let sessionKeyLC = cookies.first { $0.name == "sessionKeyLC" && !$0.value.isEmpty }?.value ?? ""
 
-            // Build full cookie header — platform.claude.com requires multiple cookies
-            // (anthropic-device-id, __ssid, etc.) beyond just sessionKeyLC.
-            let cookieHeader = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+            // Build cookie header for platform.claude.com using ONLY its own domain cookies.
+            // Sending cookies from both claude.ai and platform.claude.com causes duplicate
+            // names (e.g. anthropic-device-id appears twice) which breaks API auth.
+            let cookieHeader = cookies
+                .filter { c in
+                    let d = c.domain
+                    return d == "platform.claude.com" || d == ".platform.claude.com"
+                }
+                .map { "\($0.name)=\($0.value)" }
+                .joined(separator: "; ")
             self.capturedPlatformCookies = cookieHeader
 
             guard let url = URL(string: "https://platform.claude.com/api/organizations") else {
