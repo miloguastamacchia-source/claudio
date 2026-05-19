@@ -183,29 +183,46 @@ class LoginWindow: NSObject, WKNavigationDelegate {
         guard awaitingSessionKeyLC, webView.url?.host == "platform.claude.com" else { return }
         awaitingSessionKeyLC = false  // prevent timeout from double-firing
 
-        // Fetch org list from within the WebView's cookie context — URLSession can't do this
-        // because platform.claude.com requires multiple cookies beyond just sessionKeyLC.
-        let js = "fetch('/api/organizations').then(r=>r.json()).then(d=>JSON.stringify(d)).catch(()=>'')"
-        webView.callAsyncJavaScript(js, arguments: [:], in: nil, in: .page) { [weak self] result in
+        // After the page finishes loading, the WebView's cookie store has ALL cookies set by
+        // platform.claude.com (sessionKeyLC, anthropic-device-id, __ssid, etc.).
+        // We build a full cookie header from the store and use it for a URLSession request —
+        // this mirrors what the browser sends and gets past platform.claude.com's auth.
+        webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
             guard let self else { return }
-            if case .success(let val) = result,
-               let str = val as? String, !str.isEmpty,
-               let data = str.data(using: .utf8),
-               let orgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-                // Pick the prepaid org (the API credits org on platform.claude.com)
-                for org in orgs {
-                    if let uuid = org["uuid"] as? String,
-                       (org["billing_type"] as? String) == "prepaid" {
-                        self.capturedConsoleOrgId = uuid
-                        break
+
+            let sessionKeyLC = cookies.first { $0.name == "sessionKeyLC" && !$0.value.isEmpty }?.value ?? ""
+
+            // Build cookie header from all cookies in the non-persistent store
+            let cookieHeader = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+
+            guard let url = URL(string: "https://platform.claude.com/api/organizations") else {
+                self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: sessionKeyLC)
+                return
+            }
+            var req = URLRequest(url: url, timeoutInterval: 10)
+            req.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+            req.setValue("https://platform.claude.com", forHTTPHeaderField: "origin")
+            req.setValue("https://platform.claude.com/", forHTTPHeaderField: "referer")
+            req.setValue(loginUserAgent, forHTTPHeaderField: "User-Agent")
+            req.setValue("application/json", forHTTPHeaderField: "Accept")
+
+            URLSession.shared.dataTask(with: req) { data, _, _ in
+                var consoleOrgId = ""
+                if let data,
+                   let orgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                    for org in orgs {
+                        if let uuid = org["uuid"] as? String,
+                           (org["billing_type"] as? String) == "prepaid" {
+                            consoleOrgId = uuid
+                            break
+                        }
                     }
                 }
-            }
-            // Now read sessionKeyLC from the cookie store (set during platform.claude.com page load)
-            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
-                let keyLC = cookies.first { $0.name == "sessionKeyLC" && !$0.value.isEmpty }?.value ?? ""
-                self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: keyLC)
-            }
+                DispatchQueue.main.async {
+                    self.capturedConsoleOrgId = consoleOrgId
+                    self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: sessionKeyLC)
+                }
+            }.resume()
         }
     }
 
