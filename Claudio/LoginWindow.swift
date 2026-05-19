@@ -5,7 +5,8 @@ private let loginUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Ap
 
 private let allowedDomains: Set<String> = [
     "claude.ai",
-    "platform.claude.com",  // navigated to after login to capture platform sessionKey
+    "platform.claude.com",      // Phase 2: capture platform sessionKey
+    "console.anthropic.com",    // Phase 2: platform.claude.com/login may redirect here
     "accounts.google.com",
     "accounts.google.co.jp",
     "accounts.google.com.hk",
@@ -104,11 +105,14 @@ class LoginWindow: NSObject, WKNavigationDelegate {
                     self.capturedSessionKey = cookie.value
                     self.stopPolling()
                     self.awaitingPlatformSession = true
-                    // Navigate to platform.claude.com to trigger SSO
-                    if let url = URL(string: "https://platform.claude.com") {
+                    // Navigate to platform.claude.com/login to establish a console session.
+                    // If SSO is available it will complete automatically; otherwise the user
+                    // sees the console login page and can authenticate manually.
+                    self.window?.title = "Log in to Anthropic Console (for API credits)"
+                    if let url = URL(string: "https://platform.claude.com/login") {
                         self.webView?.load(URLRequest(url: url))
                     }
-                    // Poll for the platform sessionKey that SSO will set
+                    // Poll for the platform sessionKey
                     self.startPlatformPolling()
                     return
                 }
@@ -120,10 +124,9 @@ class LoginWindow: NSObject, WKNavigationDelegate {
 
     private func startPlatformPolling() {
         var attempts = 0
-        // Poll every 500 ms for up to 15 s (30 attempts).
-        // The platform SSO runs as JavaScript after didFinishNavigation, so we must wait
-        // for the platform.claude.com domain to set its own sessionKey (a distinct sk-ant-sid02-
-        // value separate from the claude.ai sessionKey).
+        // Poll every 500 ms for up to 60 s (120 attempts).
+        // If platform.claude.com SSO auto-completes this fires quickly; if the user must
+        // log in manually they have up to 60 s before we time out and proceed anyway.
         platformTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self else { return }
             attempts += 1
@@ -133,13 +136,14 @@ class LoginWindow: NSObject, WKNavigationDelegate {
                 var platformKey: HTTPCookie? = nil
                 for c in cookies where c.name == "sessionKey" {
                     let onPlatform = c.domain == "platform.claude.com" || c.domain == ".platform.claude.com"
+                        || c.domain == "console.anthropic.com" || c.domain == ".console.anthropic.com"
                     if onPlatform && !c.value.isEmpty && c.value != self.capturedSessionKey {
                         platformKey = c
                         break
                     }
                 }
 
-                let done = platformKey != nil || attempts >= 30
+                let done = platformKey != nil || attempts >= 120
                 guard done else { return }
 
                 self.platformTimer?.invalidate()
@@ -147,9 +151,9 @@ class LoginWindow: NSObject, WKNavigationDelegate {
                 self.awaitingPlatformSession = false
 
                 if platformKey != nil {
-                    log.info("Platform SSO complete (attempt \(attempts))")
+                    log.info("Platform login complete (attempt \(attempts))")
                 } else {
-                    log.warning("Platform SSO timed out — no distinct platform sessionKey found")
+                    log.warning("Platform login timed out after 60 s — proceeding without platform sessionKey")
                 }
                 self.capturePlatformCookiesAndFinish(from: cookies)
             }
@@ -161,13 +165,14 @@ class LoginWindow: NSObject, WKNavigationDelegate {
     private func capturePlatformCookiesAndFinish(from cookies: [HTTPCookie]) {
         let sessionKeyLC = cookies.first { $0.name == "sessionKeyLC" && !$0.value.isEmpty }?.value ?? ""
 
-        // Deduplicate: platform.claude.com cookies take priority over same-named claude.ai cookies.
-        // Exclude sessionKey ONLY when it comes from the claude.ai domain — the platform.claude.com
-        // sessionKey (a separate token set by SSO) must be kept.
+        // Deduplicate: platform.claude.com / console.anthropic.com cookies take priority.
+        // Exclude sessionKey ONLY from the claude.ai domain — the platform sessionKey IS kept.
+        let isConsoleDomain = { (d: String) -> Bool in
+            d == "platform.claude.com" || d == ".platform.claude.com"
+            || d == "console.anthropic.com" || d == ".console.anthropic.com"
+        }
         let prioritised = cookies.sorted { a, b in
-            let pa = a.domain == "platform.claude.com" || a.domain == ".platform.claude.com"
-            let pb = b.domain == "platform.claude.com" || b.domain == ".platform.claude.com"
-            return pa && !pb
+            isConsoleDomain(a.domain) && !isConsoleDomain(b.domain)
         }
         var seen = Set<String>()
         var parts: [String] = []
@@ -175,7 +180,7 @@ class LoginWindow: NSObject, WKNavigationDelegate {
             let d = c.domain
             guard d.contains("claude") || d.contains("anthropic") else { continue }
             // Skip claude.ai's sessionKey — it must not be sent to platform.claude.com.
-            // The platform.claude.com sessionKey (same name, different value/domain) IS kept.
+            // The platform/console sessionKey (same name, different value/domain) IS kept.
             if c.name == "sessionKey" && (d == "claude.ai" || d == ".claude.ai") { continue }
             if seen.insert(c.name).inserted {
                 parts.append("\(c.name)=\(c.value)")
