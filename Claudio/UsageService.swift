@@ -334,12 +334,15 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
 
     group.enter()
     DispatchQueue.global().async {
-        // Credits live on claude.ai under the same orgId as all other calls —
-        // no platform.claude.com, consoleOrgId, or sessionKeyLC needed.
-        creditsResult = apiRequestDict(
-            path: "/api/organizations/\(session.orgId)/prepaid/credits",
-            sessionKey: session.sessionKey
-        )
+        if !session.consoleOrgId.isEmpty {
+            creditsResult = apiRequestDict(
+                path: "/api/organizations/\(session.consoleOrgId)/prepaid/credits",
+                sessionKey: session.sessionKey,
+                baseURL: "https://platform.claude.com",
+                sessionKeyLC: session.sessionKeyLC,
+                platformCookies: session.platformCookies
+            )
+        }
         group.leave()
     }
 
