@@ -208,6 +208,9 @@ class LoginWindow: NSObject, WKNavigationDelegate {
             for c in prioritised {
                 let d = c.domain
                 guard d.contains("claude") || d.contains("anthropic") else { continue }
+                // sessionKey is the claude.ai auth token — it must NOT be sent to
+                // platform.claude.com; doing so causes "Invalid authorization for organization".
+                if c.name == "sessionKey" { continue }
                 if seen.insert(c.name).inserted {
                     parts.append("\(c.name)=\(c.value)")
                 }
