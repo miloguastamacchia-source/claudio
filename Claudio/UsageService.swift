@@ -72,7 +72,8 @@ struct Session {
     let sessionKey: String
     let orgId: String
     var consoleOrgId: String = ""
-    var sessionKeyLC: String = ""   // platform.claude.com uses this cookie name
+    var sessionKeyLC: String = ""        // platform.claude.com session cookie value
+    var platformCookies: String = ""     // full cookie header for platform.claude.com requests
 }
 
 func loadSession() -> Session? {
@@ -82,7 +83,8 @@ func loadSession() -> Session? {
     else { return nil }
     return Session(sessionKey: key, orgId: org,
                    consoleOrgId: dict["consoleOrgId"] ?? "",
-                   sessionKeyLC: dict["sessionKeyLC"] ?? "")
+                   sessionKeyLC: dict["sessionKeyLC"] ?? "",
+                   platformCookies: dict["platformCookies"] ?? "")
 }
 
 func saveSession(_ session: Session) {
@@ -91,6 +93,7 @@ func saveSession(_ session: Session) {
         "orgId": session.orgId,
         "consoleOrgId": session.consoleOrgId,
         "sessionKeyLC": session.sessionKeyLC,
+        "platformCookies": session.platformCookies,
     ]
     if let data = try? JSONSerialization.data(withJSONObject: dict) {
         if !keychainSave(service: keychainService, account: keychainAccount, data: data) {
@@ -170,15 +173,17 @@ private enum ApiResult {
 }
 
 private func apiRequest(path: String, sessionKey: String, baseURL: String = "https://claude.ai",
-                        sessionKeyLC: String = "") -> ApiResult {
+                        sessionKeyLC: String = "", platformCookies: String = "") -> ApiResult {
     guard let url = URL(string: "\(baseURL)\(path)") else { return .networkError("Bad URL") }
     var req = URLRequest(url: url, timeoutInterval: 15)
     for (k, v) in browserHeaders { req.setValue(v, forHTTPHeaderField: k) }
     req.setValue(baseURL, forHTTPHeaderField: "origin")
     req.setValue("\(baseURL)/", forHTTPHeaderField: "referer")
-    // platform.claude.com uses cookie name "sessionKeyLC" with a distinct value captured at login
     if baseURL.contains("platform.claude.com") {
-        req.setValue("sessionKeyLC=\(sessionKeyLC)", forHTTPHeaderField: "Cookie")
+        // Use the full cookie jar captured at login (mirrors browser behaviour);
+        // fall back to just sessionKeyLC if platformCookies wasn't stored yet.
+        let cookie = platformCookies.isEmpty ? "sessionKeyLC=\(sessionKeyLC)" : platformCookies
+        req.setValue(cookie, forHTTPHeaderField: "Cookie")
     } else {
         req.setValue("sessionKey=\(sessionKey)", forHTTPHeaderField: "Cookie")
     }
@@ -224,8 +229,9 @@ private func apiRequest(path: String, sessionKey: String, baseURL: String = "htt
 }
 
 private func apiRequestDict(path: String, sessionKey: String, baseURL: String = "https://claude.ai",
-                            sessionKeyLC: String = "") -> ApiResult {
-    let result = apiRequest(path: path, sessionKey: sessionKey, baseURL: baseURL, sessionKeyLC: sessionKeyLC)
+                            sessionKeyLC: String = "", platformCookies: String = "") -> ApiResult {
+    let result = apiRequest(path: path, sessionKey: sessionKey, baseURL: baseURL,
+                            sessionKeyLC: sessionKeyLC, platformCookies: platformCookies)
     switch result {
     case .success(let json):
         if let dict = json as? [String: Any] {
@@ -304,7 +310,8 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
                 path: "/api/organizations/\(session.consoleOrgId)/prepaid/credits",
                 sessionKey: session.sessionKey,
                 baseURL: "https://platform.claude.com",
-                sessionKeyLC: session.sessionKeyLC
+                sessionKeyLC: session.sessionKeyLC,
+                platformCookies: session.platformCookies
             )
         }
         group.leave()

@@ -26,6 +26,7 @@ class LoginWindow: NSObject, WKNavigationDelegate {
     private let maxValidationRetries = 5
     private var capturedSessionKey: String = ""
     private var capturedConsoleOrgId: String = ""
+    private var capturedPlatformCookies: String = ""
     private var awaitingSessionKeyLC = false
 
     init(onSuccess: @escaping (String, String) -> Void, onCancel: (() -> Void)? = nil) {
@@ -120,6 +121,7 @@ class LoginWindow: NSObject, WKNavigationDelegate {
     private func handleSessionKey(_ key: String, sessionKeyLC: String) {
         // Capture on main thread before dispatching to background
         let preloadedConsoleOrgId = capturedConsoleOrgId
+        let preloadedPlatformCookies = capturedPlatformCookies
         DispatchQueue.global().async { [weak self] in
             guard let orgId = validateAndGetOrg(sessionKey: key) else {
                 DispatchQueue.main.async {
@@ -144,7 +146,8 @@ class LoginWindow: NSObject, WKNavigationDelegate {
             let consoleOrgId = preloadedConsoleOrgId.isEmpty
                 ? (validateAndGetConsoleOrg(sessionKey: key, sessionKeyLC: sessionKeyLC, excludingOrgId: orgId) ?? "")
                 : preloadedConsoleOrgId
-            saveSession(Session(sessionKey: key, orgId: orgId, consoleOrgId: consoleOrgId, sessionKeyLC: sessionKeyLC))
+            saveSession(Session(sessionKey: key, orgId: orgId, consoleOrgId: consoleOrgId,
+                               sessionKeyLC: sessionKeyLC, platformCookies: preloadedPlatformCookies))
             DispatchQueue.main.async {
                 self?.close()
                 self?.onSuccess?(key, orgId)
@@ -192,8 +195,10 @@ class LoginWindow: NSObject, WKNavigationDelegate {
 
             let sessionKeyLC = cookies.first { $0.name == "sessionKeyLC" && !$0.value.isEmpty }?.value ?? ""
 
-            // Build cookie header from all cookies in the non-persistent store
+            // Build full cookie header — platform.claude.com requires multiple cookies
+            // (anthropic-device-id, __ssid, etc.) beyond just sessionKeyLC.
             let cookieHeader = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+            self.capturedPlatformCookies = cookieHeader
 
             guard let url = URL(string: "https://platform.claude.com/api/organizations") else {
                 self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: sessionKeyLC)
