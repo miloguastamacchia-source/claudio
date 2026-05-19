@@ -216,7 +216,7 @@ class LoginWindow: NSObject, WKNavigationDelegate {
                 return
             }
             var req = URLRequest(url: url, timeoutInterval: 10)
-            req.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+            req.setValue(self.capturedPlatformCookies, forHTTPHeaderField: "Cookie")
             req.setValue("https://platform.claude.com", forHTTPHeaderField: "origin")
             req.setValue("https://platform.claude.com/", forHTTPHeaderField: "referer")
             req.setValue(loginUserAgent, forHTTPHeaderField: "User-Agent")
