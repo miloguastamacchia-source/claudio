@@ -19,6 +19,7 @@ struct UsageData {
     var extraEnabled: Bool = false
     var creditRemaining: Double = 0
     var creditTotal: Double = 0
+    var creditCurrency: String = "USD"
 }
 
 enum UsageResult {
@@ -135,6 +136,7 @@ func saveSnapshot(_ data: UsageData) {
         "overagePct": data.overagePct, "overageReset": data.overageReset,
         "extraDollars": data.extraDollars, "extraEnabled": data.extraEnabled,
         "creditRemaining": data.creditRemaining, "creditTotal": data.creditTotal,
+        "creditCurrency": data.creditCurrency,
     ]
     UserDefaults.standard.set(dict, forKey: snapshotKey)
     UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: snapshotTimeKey)
@@ -156,7 +158,8 @@ func loadSnapshot() -> (UsageData, TimeInterval)? {
         extraDollars: dict["extraDollars"] as? Double ?? 0,
         extraEnabled: dict["extraEnabled"] as? Bool ?? false,
         creditRemaining: dict["creditRemaining"] as? Double ?? 0,
-        creditTotal: dict["creditTotal"] as? Double ?? 0
+        creditTotal: dict["creditTotal"] as? Double ?? 0,
+        creditCurrency: dict["creditCurrency"] as? String ?? "USD"
     )
     return (data, ts)
 }
@@ -331,15 +334,12 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
 
     group.enter()
     DispatchQueue.global().async {
-        if !session.consoleOrgId.isEmpty {
-            creditsResult = apiRequestDict(
-                path: "/api/organizations/\(session.consoleOrgId)/prepaid/credits",
-                sessionKey: session.sessionKey,
-                baseURL: "https://platform.claude.com",
-                sessionKeyLC: session.sessionKeyLC,
-                platformCookies: session.platformCookies
-            )
-        }
+        // Credits live on claude.ai under the same orgId as all other calls —
+        // no platform.claude.com, consoleOrgId, or sessionKeyLC needed.
+        creditsResult = apiRequestDict(
+            path: "/api/organizations/\(session.orgId)/prepaid/credits",
+            sessionKey: session.sessionKey
+        )
         group.leave()
     }
 
@@ -376,6 +376,7 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     var creditRemaining: Double = 0
     var creditTotal: Double = 0
 
+    var creditCurrency = "USD"
     switch creditsResult {
     case .success(let creditsJson):
         if let cr = creditsJson as? [String: Any] {
@@ -388,18 +389,15 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
             let pending = cents("pending_invoice_amount_cents")
             creditRemaining = Double(gross - pending) / 100
             creditTotal     = Double(cents("last_paid_purchase_cents")) / 100
-            log.info("Credits: remaining=\(creditRemaining) total=\(creditTotal) (gross=\(gross) pending=\(pending))")
+            creditCurrency  = cr["currency"] as? String ?? "USD"
+            log.info("Credits: remaining=\(creditRemaining) total=\(creditTotal) currency=\(creditCurrency)")
         } else {
             log.warning("Credits response was not a dict: \(String(describing: type(of: creditsJson)))")
         }
     case .authFailure:
-        log.warning("Credits auth failure — platformCookies length=\(session.platformCookies.count)")
+        log.warning("Credits auth failure on \(session.orgId)")
     case .networkError(let msg):
-        if session.consoleOrgId.isEmpty {
-            log.info("Credits skipped — no consoleOrgId")
-        } else {
-            log.warning("Credits network error: \(msg)")
-        }
+        log.warning("Credits network error: \(msg)")
     }
 
     let usedCents = (ov["used_credits"] as? Int) ?? 0
@@ -416,7 +414,8 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
         extraDollars: Double(usedCents) / 100,
         extraEnabled: (ov["is_enabled"] as? Bool) ?? false,
         creditRemaining: creditRemaining,
-        creditTotal: creditTotal
+        creditTotal: creditTotal,
+        creditCurrency: creditCurrency
     ))
 }
 

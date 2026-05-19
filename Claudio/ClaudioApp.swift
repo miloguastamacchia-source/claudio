@@ -235,13 +235,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let cRemaining = d.creditRemaining
         let cTotal = d.creditTotal
+        let cSym = currencySymbol(d.creditCurrency)
         // Bar shows remaining fraction — full = all credits intact, empties rightward as credits are spent
         let cRemainingFrac = cTotal > 0 ? cRemaining / cTotal : 0
         let cLabel: String
         if cTotal > 0 {
-            cLabel = String(format: "$%.2f / $%.2f", cRemaining, cTotal)
+            cLabel = String(format: "\(cSym)%.2f / \(cSym)%.2f", cRemaining, cTotal)
         } else if cRemaining > 0 {
-            cLabel = String(format: "$%.2f remaining", cRemaining)
+            cLabel = String(format: "\(cSym)%.2f remaining", cRemaining)
         } else {
             cLabel = "—"
         }
@@ -355,6 +356,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func quitClicked() { NSApp.terminate(nil) }
+}
+
+// MARK: - Helpers
+
+private func currencySymbol(_ code: String) -> String {
+    switch code.uppercased() {
+    case "USD": return "$"
+    case "EUR": return "€"
+    case "GBP": return "£"
+    case "JPY": return "¥"
+    case "CAD": return "CA$"
+    case "AUD": return "A$"
+    default:    return "\(code) "
+    }
 }
 
 // MARK: - Launch at Login (SMAppService, macOS 13+)
