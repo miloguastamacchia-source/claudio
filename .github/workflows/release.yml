@@ -105,9 +105,17 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # CI checks out at the tag (detached HEAD). Save the generated appcast,
+          # switch to the real main branch (which may have advanced while we built),
+          # then commit and push cleanly without a non-fast-forward error.
+          cp appcast.xml /tmp/appcast-generated.xml
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          cp /tmp/appcast-generated.xml appcast.xml
           git add appcast.xml
           git commit -m "chore: update appcast for v${{ env.VERSION }}"
-          git push origin HEAD:main
+          git push origin main
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
