@@ -297,8 +297,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func loginClicked() {
         loginWindow = LoginWindow(
-            onSuccess: { [weak self] sessionKey, orgId in
-                saveSession(Session(sessionKey: sessionKey, orgId: orgId))
+            onSuccess: { [weak self] _, _ in
+                // Session already fully saved by LoginWindow (includes sessionKeyLC, consoleOrgId)
                 self?.authFailed = false
                 self?.loginWindow = nil
                 self?.updateAuthVisibility()

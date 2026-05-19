@@ -72,6 +72,7 @@ struct Session {
     let sessionKey: String
     let orgId: String
     var consoleOrgId: String = ""
+    var sessionKeyLC: String = ""   // platform.claude.com uses this cookie name
 }
 
 func loadSession() -> Session? {
@@ -79,7 +80,9 @@ func loadSession() -> Session? {
           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: String],
           let key = dict["sessionKey"], let org = dict["orgId"]
     else { return nil }
-    return Session(sessionKey: key, orgId: org, consoleOrgId: dict["consoleOrgId"] ?? "")
+    return Session(sessionKey: key, orgId: org,
+                   consoleOrgId: dict["consoleOrgId"] ?? "",
+                   sessionKeyLC: dict["sessionKeyLC"] ?? "")
 }
 
 func saveSession(_ session: Session) {
@@ -87,6 +90,7 @@ func saveSession(_ session: Session) {
         "sessionKey": session.sessionKey,
         "orgId": session.orgId,
         "consoleOrgId": session.consoleOrgId,
+        "sessionKeyLC": session.sessionKeyLC,
     ]
     if let data = try? JSONSerialization.data(withJSONObject: dict) {
         if !keychainSave(service: keychainService, account: keychainAccount, data: data) {
@@ -165,15 +169,19 @@ private enum ApiResult {
     case networkError(String)
 }
 
-private func apiRequest(path: String, sessionKey: String, baseURL: String = "https://claude.ai") -> ApiResult {
+private func apiRequest(path: String, sessionKey: String, baseURL: String = "https://claude.ai",
+                        sessionKeyLC: String = "") -> ApiResult {
     guard let url = URL(string: "\(baseURL)\(path)") else { return .networkError("Bad URL") }
     var req = URLRequest(url: url, timeoutInterval: 15)
     for (k, v) in browserHeaders { req.setValue(v, forHTTPHeaderField: k) }
     req.setValue(baseURL, forHTTPHeaderField: "origin")
     req.setValue("\(baseURL)/", forHTTPHeaderField: "referer")
-    // platform.claude.com uses "sessionKeyLC"; claude.ai uses "sessionKey"
-    let cookieName = baseURL.contains("platform.claude.com") ? "sessionKeyLC" : "sessionKey"
-    req.setValue("\(cookieName)=\(sessionKey)", forHTTPHeaderField: "Cookie")
+    // platform.claude.com uses cookie name "sessionKeyLC" with a distinct value captured at login
+    if baseURL.contains("platform.claude.com") {
+        req.setValue("sessionKeyLC=\(sessionKeyLC)", forHTTPHeaderField: "Cookie")
+    } else {
+        req.setValue("sessionKey=\(sessionKey)", forHTTPHeaderField: "Cookie")
+    }
 
     var result: ApiResult = .networkError("Request timed out")
     let sem = DispatchSemaphore(value: 0)
@@ -215,8 +223,9 @@ private func apiRequest(path: String, sessionKey: String, baseURL: String = "htt
     return result
 }
 
-private func apiRequestDict(path: String, sessionKey: String, baseURL: String = "https://claude.ai") -> ApiResult {
-    let result = apiRequest(path: path, sessionKey: sessionKey, baseURL: baseURL)
+private func apiRequestDict(path: String, sessionKey: String, baseURL: String = "https://claude.ai",
+                            sessionKeyLC: String = "") -> ApiResult {
+    let result = apiRequest(path: path, sessionKey: sessionKey, baseURL: baseURL, sessionKeyLC: sessionKeyLC)
     switch result {
     case .success(let json):
         if let dict = json as? [String: Any] {
@@ -237,8 +246,8 @@ func validateAndGetOrg(sessionKey: String) -> String? {
     return uuid
 }
 
-func validateAndGetConsoleOrg(sessionKey: String, excludingOrgId: String) -> String? {
-    guard case .success(let json) = apiRequest(path: "/api/organizations", sessionKey: sessionKey, baseURL: "https://platform.claude.com"),
+func validateAndGetConsoleOrg(sessionKey: String, sessionKeyLC: String = "", excludingOrgId: String) -> String? {
+    guard case .success(let json) = apiRequest(path: "/api/organizations", sessionKey: sessionKey, baseURL: "https://platform.claude.com", sessionKeyLC: sessionKeyLC),
           let arr = json as? [[String: Any]]
     else { return nil }
     // platform.claude.com returns multiple orgs including the claude.ai org —
@@ -258,7 +267,7 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     // the claude.ai org ID (which platform.claude.com also returns but is the wrong one).
     var session = session
     if session.consoleOrgId.isEmpty || session.consoleOrgId == session.orgId {
-        if let cid = validateAndGetConsoleOrg(sessionKey: session.sessionKey, excludingOrgId: session.orgId) {
+        if let cid = validateAndGetConsoleOrg(sessionKey: session.sessionKey, sessionKeyLC: session.sessionKeyLC, excludingOrgId: session.orgId) {
             session.consoleOrgId = cid
             saveSession(session)
         }
@@ -294,7 +303,8 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
             creditsResult = apiRequestDict(
                 path: "/api/organizations/\(session.consoleOrgId)/prepaid/credits",
                 sessionKey: session.sessionKey,
-                baseURL: "https://platform.claude.com"
+                baseURL: "https://platform.claude.com",
+                sessionKeyLC: session.sessionKeyLC
             )
         }
         group.leave()

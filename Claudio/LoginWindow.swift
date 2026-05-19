@@ -5,6 +5,7 @@ private let loginUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Ap
 
 private let allowedDomains: Set<String> = [
     "claude.ai",
+    "platform.claude.com",  // navigated to after login to capture sessionKeyLC
     "accounts.google.com",
     "accounts.google.co.jp",
     "accounts.google.com.hk",
@@ -23,6 +24,8 @@ class LoginWindow: NSObject, WKNavigationDelegate {
     private var onCancel: (() -> Void)?
     private var validationRetries = 0
     private let maxValidationRetries = 5
+    private var capturedSessionKey: String = ""
+    private var awaitingSessionKeyLC = false
 
     init(onSuccess: @escaping (String, String) -> Void, onCancel: (() -> Void)? = nil) {
         self.onSuccess = onSuccess
@@ -91,19 +94,41 @@ class LoginWindow: NSObject, WKNavigationDelegate {
         guard let wv = webView else { return }
         wv.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
             guard let self else { return }
-            for cookie in cookies {
-                if cookie.name == "sessionKey",
-                   (cookie.domain.contains("claude.ai")),
-                   !cookie.value.isEmpty {
+
+            if self.awaitingSessionKeyLC {
+                // Phase 2: looking for sessionKeyLC after navigating to platform.claude.com
+                for cookie in cookies where cookie.name == "sessionKeyLC" && !cookie.value.isEmpty {
                     self.stopPolling()
-                    self.handleSessionKey(cookie.value)
+                    self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: cookie.value)
                     return
+                }
+            } else {
+                // Phase 1: looking for sessionKey on claude.ai
+                for cookie in cookies {
+                    if cookie.name == "sessionKey", cookie.domain.contains("claude.ai"), !cookie.value.isEmpty {
+                        self.capturedSessionKey = cookie.value
+                        self.stopPolling()
+                        // Navigate to platform.claude.com to capture sessionKeyLC
+                        self.awaitingSessionKeyLC = true
+                        if let url = URL(string: "https://platform.claude.com") {
+                            self.webView?.load(URLRequest(url: url))
+                        }
+                        self.startPolling()
+                        // Timeout after 6s — proceed without sessionKeyLC if not found
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+                            guard let self, self.awaitingSessionKeyLC else { return }
+                            self.awaitingSessionKeyLC = false
+                            self.stopPolling()
+                            self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: "")
+                        }
+                        return
+                    }
                 }
             }
         }
     }
 
-    private func handleSessionKey(_ key: String) {
+    private func handleSessionKey(_ key: String, sessionKeyLC: String) {
         DispatchQueue.global().async { [weak self] in
             guard let orgId = validateAndGetOrg(sessionKey: key) else {
                 DispatchQueue.main.async {
@@ -124,8 +149,8 @@ class LoginWindow: NSObject, WKNavigationDelegate {
                 }
                 return
             }
-            let consoleOrgId = validateAndGetConsoleOrg(sessionKey: key, excludingOrgId: orgId) ?? ""
-            saveSession(Session(sessionKey: key, orgId: orgId, consoleOrgId: consoleOrgId))
+            let consoleOrgId = validateAndGetConsoleOrg(sessionKey: key, sessionKeyLC: sessionKeyLC, excludingOrgId: orgId) ?? ""
+            saveSession(Session(sessionKey: key, orgId: orgId, consoleOrgId: consoleOrgId, sessionKeyLC: sessionKeyLC))
             DispatchQueue.main.async {
                 self?.close()
                 self?.onSuccess?(key, orgId)
