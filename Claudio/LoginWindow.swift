@@ -25,6 +25,7 @@ class LoginWindow: NSObject, WKNavigationDelegate {
     private var validationRetries = 0
     private let maxValidationRetries = 5
     private var capturedSessionKey: String = ""
+    private var capturedConsoleOrgId: String = ""
     private var awaitingSessionKeyLC = false
 
     init(onSuccess: @escaping (String, String) -> Void, onCancel: (() -> Void)? = nil) {
@@ -93,42 +94,32 @@ class LoginWindow: NSObject, WKNavigationDelegate {
     private func pollCookies() {
         guard let wv = webView else { return }
         wv.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
-            guard let self else { return }
-
-            if self.awaitingSessionKeyLC {
-                // Phase 2: looking for sessionKeyLC after navigating to platform.claude.com
-                for cookie in cookies where cookie.name == "sessionKeyLC" && !cookie.value.isEmpty {
+            guard let self, !self.awaitingSessionKeyLC else { return }
+            // Phase 1: looking for sessionKey on claude.ai
+            for cookie in cookies {
+                if cookie.name == "sessionKey", cookie.domain.contains("claude.ai"), !cookie.value.isEmpty {
+                    self.capturedSessionKey = cookie.value
                     self.stopPolling()
-                    self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: cookie.value)
-                    return
-                }
-            } else {
-                // Phase 1: looking for sessionKey on claude.ai
-                for cookie in cookies {
-                    if cookie.name == "sessionKey", cookie.domain.contains("claude.ai"), !cookie.value.isEmpty {
-                        self.capturedSessionKey = cookie.value
-                        self.stopPolling()
-                        // Navigate to platform.claude.com to capture sessionKeyLC
-                        self.awaitingSessionKeyLC = true
-                        if let url = URL(string: "https://platform.claude.com") {
-                            self.webView?.load(URLRequest(url: url))
-                        }
-                        self.startPolling()
-                        // Timeout after 6s — proceed without sessionKeyLC if not found
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
-                            guard let self, self.awaitingSessionKeyLC else { return }
-                            self.awaitingSessionKeyLC = false
-                            self.stopPolling()
-                            self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: "")
-                        }
-                        return
+                    // Navigate to platform.claude.com — Phase 2 is handled in webView(_:didFinish:)
+                    self.awaitingSessionKeyLC = true
+                    if let url = URL(string: "https://platform.claude.com") {
+                        self.webView?.load(URLRequest(url: url))
                     }
+                    // Timeout: if platform.claude.com never fully loads
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+                        guard let self, self.awaitingSessionKeyLC else { return }
+                        self.awaitingSessionKeyLC = false
+                        self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: "")
+                    }
+                    return
                 }
             }
         }
     }
 
     private func handleSessionKey(_ key: String, sessionKeyLC: String) {
+        // Capture on main thread before dispatching to background
+        let preloadedConsoleOrgId = capturedConsoleOrgId
         DispatchQueue.global().async { [weak self] in
             guard let orgId = validateAndGetOrg(sessionKey: key) else {
                 DispatchQueue.main.async {
@@ -149,7 +140,10 @@ class LoginWindow: NSObject, WKNavigationDelegate {
                 }
                 return
             }
-            let consoleOrgId = validateAndGetConsoleOrg(sessionKey: key, sessionKeyLC: sessionKeyLC, excludingOrgId: orgId) ?? ""
+            // Use org ID captured via WebView JS (has full cookie context); fall back to URLSession
+            let consoleOrgId = preloadedConsoleOrgId.isEmpty
+                ? (validateAndGetConsoleOrg(sessionKey: key, sessionKeyLC: sessionKeyLC, excludingOrgId: orgId) ?? "")
+                : preloadedConsoleOrgId
             saveSession(Session(sessionKey: key, orgId: orgId, consoleOrgId: consoleOrgId, sessionKeyLC: sessionKeyLC))
             DispatchQueue.main.async {
                 self?.close()
@@ -184,6 +178,36 @@ class LoginWindow: NSObject, WKNavigationDelegate {
     }
 
     // MARK: - WKNavigationDelegate
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard awaitingSessionKeyLC, webView.url?.host == "platform.claude.com" else { return }
+        awaitingSessionKeyLC = false  // prevent timeout from double-firing
+
+        // Fetch org list from within the WebView's cookie context — URLSession can't do this
+        // because platform.claude.com requires multiple cookies beyond just sessionKeyLC.
+        let js = "fetch('/api/organizations').then(r=>r.json()).then(d=>JSON.stringify(d)).catch(()=>'')"
+        webView.callAsyncJavaScript(js, arguments: [:], in: nil, in: .page) { [weak self] result in
+            guard let self else { return }
+            if case .success(let val) = result,
+               let str = val as? String, !str.isEmpty,
+               let data = str.data(using: .utf8),
+               let orgs = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                // Pick the prepaid org (the API credits org on platform.claude.com)
+                for org in orgs {
+                    if let uuid = org["uuid"] as? String,
+                       (org["billing_type"] as? String) == "prepaid" {
+                        self.capturedConsoleOrgId = uuid
+                        break
+                    }
+                }
+            }
+            // Now read sessionKeyLC from the cookie store (set during platform.claude.com page load)
+            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+                let keyLC = cookies.first { $0.name == "sessionKeyLC" && !$0.value.isEmpty }?.value ?? ""
+                self.handleSessionKey(self.capturedSessionKey, sessionKeyLC: keyLC)
+            }
+        }
+    }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
