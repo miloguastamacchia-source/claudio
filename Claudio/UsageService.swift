@@ -361,6 +361,7 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
 
     let ov: [String: Any]
     if case .success(let overageJson) = overageResult, let dict = overageJson as? [String: Any] {
+        log.info("Overage raw: \(dict)")
         ov = dict
     } else {
         ov = [:]
@@ -383,6 +384,7 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     switch creditsResult {
     case .success(let creditsJson):
         if let cr = creditsJson as? [String: Any] {
+            log.info("Credits raw: \(cr)")
             func cents(_ key: String) -> Int {
                 if let n = cr[key] as? Int    { return n }
                 if let d = cr[key] as? Double { return Int(d) }
@@ -392,7 +394,11 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
             let pending = cents("pending_invoice_amount_cents")
             creditRemaining = Double(gross - pending) / 100
             creditTotal     = Double(cents("last_paid_purchase_cents")) / 100
-            creditCurrency  = cr["currency"] as? String ?? "USD"
+            // Try several possible currency field names
+            creditCurrency  = cr["currency"] as? String
+                           ?? cr["currency_code"] as? String
+                           ?? cr["billing_currency"] as? String
+                           ?? "USD"
             log.info("Credits: remaining=\(creditRemaining) total=\(creditTotal) currency=\(creditCurrency)")
         } else {
             log.warning("Credits response was not a dict: \(String(describing: type(of: creditsJson)))")
@@ -405,6 +411,21 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
 
     let usedCents = (ov["used_credits"] as? Int) ?? 0
 
+    // Overage utilization: try the explicit field first, then derive from used/limit.
+    // The API may return utilization as a 0–1 fraction, or omit it entirely.
+    let overagePct: Double = {
+        let raw = (ov["utilization"] as? Double) ?? 0
+        if raw > 0 { return raw * 100 }
+        // Fallback: compute from used_credits / limit (various possible field names)
+        let used = Double(usedCents)
+        let limit = (ov["spend_limit_cents"] as? Double)
+                 ?? (ov["limit_credits"]     as? Double)
+                 ?? (ov["monthly_limit_cents"] as? Double)
+                 ?? (ov["overage_spend_limit"] as? Double)
+                 ?? 0
+        return limit > 0 ? min(100, used / limit * 100) : 0
+    }()
+
     return .success(UsageData(
         sessionPct: pct(usage["five_hour"] as? [String: Any]),
         sessionReset: rst(usage["five_hour"] as? [String: Any]),
@@ -412,7 +433,7 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
         weeklyReset: rst(usage["seven_day"] as? [String: Any]),
         routineUsed: routineUsed,
         routineLimit: routineLimit,
-        overagePct: ((ov["utilization"] as? Double) ?? 0) * 100,
+        overagePct: overagePct,
         overageReset: nextMonthTs(),
         extraDollars: Double(usedCents) / 100,
         extraEnabled: (ov["is_enabled"] as? Bool) ?? false,
