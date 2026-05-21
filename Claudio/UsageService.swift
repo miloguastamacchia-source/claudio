@@ -366,6 +366,23 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     } else {
         ov = [:]
     }
+    // Debug: write raw API responses to ~/Library/Application Support/Claudio/debug.json
+    // so they can be inspected without Console.app. Remove in a future release.
+    func writeDebug(_ key: String, _ val: Any) {
+        let fm = FileManager.default
+        let dir = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Claudio")
+        var existing: [String: Any] = [:]
+        let url = dir.appendingPathComponent("debug.json")
+        if let data = try? Data(contentsOf: url),
+           let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            existing = j
+        }
+        existing[key] = val
+        if let data = try? JSONSerialization.data(withJSONObject: existing, options: .prettyPrinted) {
+            try? data.write(to: url)
+        }
+    }
 
     // run-budget returns used/limit as strings
     var routineUsed = 0
@@ -385,6 +402,8 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     case .success(let creditsJson):
         if let cr = creditsJson as? [String: Any] {
             log.info("Credits raw: \(cr)")
+            writeDebug("credits", cr)
+            writeDebug("overage", ov)
             func cents(_ key: String) -> Int {
                 if let n = cr[key] as? Int    { return n }
                 if let d = cr[key] as? Double { return Int(d) }

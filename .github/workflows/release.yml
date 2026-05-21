@@ -110,7 +110,7 @@ jobs:
           # then commit and push cleanly without a non-fast-forward error.
           cp appcast.xml /tmp/appcast-generated.xml
           git fetch origin main
-          git checkout main
+          git checkout -f main
           git pull --ff-only origin main
           cp /tmp/appcast-generated.xml appcast.xml
           git add appcast.xml
