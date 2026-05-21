@@ -17,6 +17,7 @@ struct UsageData {
     var overageReset: TimeInterval = 0
     var extraDollars: Double = 0
     var extraEnabled: Bool = false
+    var extraCurrency: String = "USD"
     var creditRemaining: Double = 0
     var creditTotal: Double = 0
     var creditCurrency: String = "USD"
@@ -135,6 +136,7 @@ func saveSnapshot(_ data: UsageData) {
         "routineUsed": data.routineUsed, "routineLimit": data.routineLimit,
         "overagePct": data.overagePct, "overageReset": data.overageReset,
         "extraDollars": data.extraDollars, "extraEnabled": data.extraEnabled,
+        "extraCurrency": data.extraCurrency,
         "creditRemaining": data.creditRemaining, "creditTotal": data.creditTotal,
         "creditCurrency": data.creditCurrency,
     ]
@@ -157,6 +159,7 @@ func loadSnapshot() -> (UsageData, TimeInterval)? {
         overageReset: dict["overageReset"] as? Double ?? 0,
         extraDollars: dict["extraDollars"] as? Double ?? 0,
         extraEnabled: dict["extraEnabled"] as? Bool ?? false,
+        extraCurrency: dict["extraCurrency"] as? String ?? "USD",
         creditRemaining: dict["creditRemaining"] as? Double ?? 0,
         creditTotal: dict["creditTotal"] as? Double ?? 0,
         creditCurrency: dict["creditCurrency"] as? String ?? "USD"
@@ -361,27 +364,9 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
 
     let ov: [String: Any]
     if case .success(let overageJson) = overageResult, let dict = overageJson as? [String: Any] {
-        log.info("Overage raw: \(dict)")
         ov = dict
     } else {
         ov = [:]
-    }
-    // Debug: write raw API responses to ~/Library/Application Support/Claudio/debug.json
-    // so they can be inspected without Console.app. Remove in a future release.
-    func writeDebug(_ key: String, _ val: Any) {
-        let fm = FileManager.default
-        let dir = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Claudio")
-        var existing: [String: Any] = [:]
-        let url = dir.appendingPathComponent("debug.json")
-        if let data = try? Data(contentsOf: url),
-           let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            existing = j
-        }
-        existing[key] = val
-        if let data = try? JSONSerialization.data(withJSONObject: existing, options: .prettyPrinted) {
-            try? data.write(to: url)
-        }
     }
 
     // run-budget returns used/limit as strings
@@ -401,9 +386,6 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     switch creditsResult {
     case .success(let creditsJson):
         if let cr = creditsJson as? [String: Any] {
-            log.info("Credits raw: \(cr)")
-            writeDebug("credits", cr)
-            writeDebug("overage", ov)
             func cents(_ key: String) -> Int {
                 if let n = cr[key] as? Int    { return n }
                 if let d = cr[key] as? Double { return Int(d) }
@@ -429,21 +411,9 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
     }
 
     let usedCents = (ov["used_credits"] as? Int) ?? 0
-
-    // Overage utilization: try the explicit field first, then derive from used/limit.
-    // The API may return utilization as a 0–1 fraction, or omit it entirely.
-    let overagePct: Double = {
-        let raw = (ov["utilization"] as? Double) ?? 0
-        if raw > 0 { return raw * 100 }
-        // Fallback: compute from used_credits / limit (various possible field names)
-        let used = Double(usedCents)
-        let limit = (ov["spend_limit_cents"] as? Double)
-                 ?? (ov["limit_credits"]     as? Double)
-                 ?? (ov["monthly_limit_cents"] as? Double)
-                 ?? (ov["overage_spend_limit"] as? Double)
-                 ?? 0
-        return limit > 0 ? min(100, used / limit * 100) : 0
-    }()
+    let limitCents = (ov["monthly_credit_limit"] as? Int) ?? 0
+    let overagePct = limitCents > 0 ? Double(usedCents) / Double(limitCents) * 100 : 0
+    let extraCurrency = (ov["currency"] as? String) ?? "USD"
 
     return .success(UsageData(
         sessionPct: pct(usage["five_hour"] as? [String: Any]),
@@ -456,6 +426,7 @@ private func fetchUsageSessionKey(session: Session) -> UsageResult {
         overageReset: nextMonthTs(),
         extraDollars: Double(usedCents) / 100,
         extraEnabled: (ov["is_enabled"] as? Bool) ?? false,
+        extraCurrency: extraCurrency,
         creditRemaining: creditRemaining,
         creditTotal: creditTotal,
         creditCurrency: creditCurrency
