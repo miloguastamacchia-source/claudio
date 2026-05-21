@@ -258,7 +258,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let oR = d.overageReset
             let daysInMonth = Double(Calendar.current.range(of: .day, in: .month, for: Date())?.count ?? 30)
             let oT = elapsedPct(resetTs: oR, windowSecs: daysInMonth * 24 * 3600)
-            extraView.setTitle("Extra usage", suffix: "\(cSym)\(String(format: "%.2f", d.extraDollars))")
+            let eSym = currencySymbol(d.extraCurrency)
+        extraView.setTitle("Extra usage", suffix: "\(eSym)\(String(format: "%.2f", d.extraDollars))")
             extraView.setData(value: "\(Int(oU))%", usageFrac: oU / 100, timeFrac: oT / 100, resetStr: "Resets in \(fmtReset(oR))")
         } else {
             extraView.setTitle("Extra usage")
